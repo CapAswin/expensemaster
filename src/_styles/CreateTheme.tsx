@@ -250,16 +250,19 @@ const buildComponents = (mode: 'light' | 'dark') => {
                         backgroundColor: isDark ? 'rgba(254,246,228,0.08)' : 'rgba(10,10,10,0.05)',
                         color: ink,
                     },
-                    // Selected tab has a constant yellow bg, so force the text dark in both themes
+                    // Selected tab has a constant yellow bg, so text & border stay dark in both
+                    // themes, but the offset shadow uses the theme ink (cream in dark) to match
+                    // the rest of the neobrutalism aesthetic.
                     '&.Mui-selected': {
                         color: '#0a0a0a',
                         backgroundColor: PALETTE.yellow,
                         border: `2px solid ${PALETTE.ink}`,
-                        boxShadow: `3px 3px 0 0 ${PALETTE.ink}`,
+                        boxShadow: `3px 3px 0 0 ${ink}`,
                     },
                     '&.Mui-selected:hover': {
                         backgroundColor: PALETTE.yellow,
                         color: '#0a0a0a',
+                        boxShadow: `3px 3px 0 0 ${ink}`,
                     },
                 },
             },
