@@ -1,29 +1,33 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axiosInstance from '../_utils/axios';
-import {
-    DataGrid,
-    GridColDef,
-    GridToolbarContainer,
-    GridToolbarFilterButton,
-    GridToolbarExport,
-    GridToolbarDensitySelector,
-} from '@mui/x-data-grid';
+import { DataGrid, GridColDef } from '@mui/x-data-grid';
 import {
     Box,
     Button,
-    Container,
+    Card,
+    CardContent,
+    Chip,
     Dialog,
     DialogActions,
     DialogContent,
     DialogContentText,
     DialogTitle,
-    CircularProgress,
+    IconButton,
+    Skeleton,
+    Stack,
     TextField,
+    Tooltip,
+    Typography,
+    Alert,
 } from '@mui/material';
 import { useDispatch } from 'react-redux';
 import { openCreateTransactinModal } from '../redux/modalSlice';
-import ReceiptIcon from '@mui/icons-material/Receipt';
+import ReceiptLongRoundedIcon from '@mui/icons-material/ReceiptLongRounded';
+import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
+import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
+
 export interface Transaction {
     id: number;
     Amount: number;
@@ -42,22 +46,25 @@ export interface Transaction {
 
 const fetchTransactions = async (): Promise<Transaction[]> => {
     const response = await axiosInstance.get('api/transactions/');
-    // Transform the data to include CategoryName
-    const transactions = response.data.map((transaction: Transaction) => ({
-        ...transaction,
-        CategoryName: transaction.CategoryID.Name
-    }));
-    return transactions;
+    return response.data.map((t: Transaction) => ({ ...t, CategoryName: t.CategoryID.Name }));
 };
 
 const deleteTransaction = async (id: number): Promise<void> => {
     await axiosInstance.delete(`api/remove/${id}`);
 };
 
+const formatDate = (dateString: string): string => {
+    const date = new Date(dateString);
+    return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(
+        date.getUTCDate(),
+    ).padStart(2, '0')}`;
+};
+
 const TransactionDataGrid: React.FC = () => {
     const [searchText, setSearchText] = useState('');
     const [deleteId, setDeleteId] = useState<number | null>(null);
     const queryClient = useQueryClient();
+    const dispatch = useDispatch();
 
     const { data: transactions = [], isLoading, error } = useQuery<Transaction[]>({
         queryKey: ['transactions'],
@@ -66,14 +73,8 @@ const TransactionDataGrid: React.FC = () => {
 
     const deleteMutation = useMutation<void, unknown, number>({
         mutationFn: deleteTransaction,
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['transactions'] });
-        },
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['transactions'] }),
     });
-
-    const handleDeleteClick = (id: number) => {
-        setDeleteId(id);
-    };
 
     const handleConfirmDelete = () => {
         if (deleteId !== null) {
@@ -82,144 +83,199 @@ const TransactionDataGrid: React.FC = () => {
         }
     };
 
-    const handleCancelDelete = () => {
-        setDeleteId(null);
-    };
-
-    const handleSearch = (event: React.ChangeEvent<HTMLInputElement>) => {
-        setSearchText(event.target.value);
-    };
-
-    function formatDate(dateString: string): string {
-        const date = new Date(dateString);
-        const year = date.getUTCFullYear();
-        const month = String(date.getUTCMonth() + 1).padStart(2, '0'); // getUTCMonth() returns 0-based month, so add 1
-        const day = String(date.getUTCDate()).padStart(2, '0');
-
-        return `${year}-${month}-${day}`;
-    }
-
     const columns: GridColDef[] = [
-        { field: 'id', headerName: 'ID', width: 70 },
-        { field: 'Amount', headerName: 'Amount', width: 130 },
-        { field: 'CategoryName', headerName: 'Category Name', width: 130 }, // Updated field
-        { field: 'Description', headerName: 'Description', width: 200 },
+        { field: 'id', headerName: 'ID', width: 80 },
         {
-            field: 'TransactionDate', headerName: 'Transaction Date', width: 180,
-            renderCell: (params) => {
-                return <span>{formatDate(params.value)}</span>;
-            },
+            field: 'Amount',
+            headerName: 'Amount',
+            width: 140,
+            renderCell: (params) => (
+                <Typography sx={{ fontWeight: 700 }}>
+                    ₹ {new Intl.NumberFormat('en-IN').format(params.value)}
+                </Typography>
+            ),
         },
-        { field: 'TransactionType', headerName: 'Transaction Type', width: 150 },
+        { field: 'CategoryName', headerName: 'Category', width: 160 },
+        { field: 'Description', headerName: 'Description', flex: 1, minWidth: 200 },
+        {
+            field: 'TransactionDate',
+            headerName: 'Date',
+            width: 140,
+            renderCell: (params) => <span>{formatDate(params.value)}</span>,
+        },
+        {
+            field: 'TransactionType',
+            headerName: 'Type',
+            width: 130,
+            renderCell: (params) => (
+                <Chip
+                    label={params.value}
+                    size='small'
+                    color={params.value === 'Income' ? 'success' : 'error'}
+                />
+            ),
+        },
         {
             field: 'actions',
             headerName: 'Actions',
-            width: 150,
-            renderCell: (params: any) => (
-                <Button variant="contained" color="secondary" onClick={(e) => {
-                    e.stopPropagation();
-                    handleDeleteClick(params.row.id);
-                }}>
-                    Delete
-                </Button>
+            width: 110,
+            sortable: false,
+            filterable: false,
+            renderCell: (params) => (
+                <Tooltip title='Delete'>
+                    <IconButton
+                        size='small'
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteId(params.row.id);
+                        }}
+                        sx={{ color: '#ef4444' }}
+                    >
+                        <DeleteRoundedIcon fontSize='small' />
+                    </IconButton>
+                </Tooltip>
             ),
         },
     ];
 
-    const filteredTransactions = transactions.filter((transaction: Transaction) =>
-        transaction.Description.toLowerCase().includes(searchText.toLowerCase())
+    const filtered = transactions.filter((t) =>
+        (t.Description || '').toLowerCase().includes(searchText.toLowerCase()),
     );
 
-    let Dispatch = useDispatch();
-    const handleCreateTransaction = () => {
-        Dispatch(openCreateTransactinModal({ open: true, id: null, data: null }));
-    };
+    const handleCreateTransaction = () =>
+        dispatch(openCreateTransactinModal({ open: true, id: null, data: null }));
 
     return (
-        <Container sx={{
-            background: "transparent", boxShadow: `
-    inset 0 0 0.5px 1px hsla(0, 0%, 100%, 0.075),
-    0 0 0 1px hsla(0, 0%, 0%, 0.05),
-    0 0.3px 0.4px hsla(0, 0%, 0%, 0.02),
-    0 0.9px 1.5px hsla(0, 0%, 0%, 0.045),
-    0 3.5px 6px hsla(0, 0%, 0%, 0.09)`,
-        }} maxWidth="lg">
-            <Box>
-                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "5px", p: 1 }}>
-                    <Box sx={{ display: "flex", alignItems: "center" }}>
-                        <ReceiptIcon color='success' sx={{ marginRight: '10px' }} /> All Transactions
-                    </Box>
-                    <Button sx={{ whiteSpace: "nowrap", pl: 3, pr: 3, fontSize: "12px" }} variant='contained' onClick={handleCreateTransaction}>Create Transaction</Button>
-                    {/* <TextField
-                        size='small'
-                        label="Search"
-                        variant="outlined"
-                        fullWidth
-                        margin="normal"
-                        value={searchText}
-                        onChange={handleSearch}
-                    /> */}
-                </Box>
-                {isLoading ? (
-                    <CircularProgress />
-                ) : error ? (
-                    <div>Error loading transactions</div>
+        <Card>
+            <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
+                <Stack
+                    direction={{ xs: 'column', md: 'row' }}
+                    justifyContent='space-between'
+                    alignItems={{ xs: 'stretch', md: 'center' }}
+                    spacing={1.5}
+                    sx={{ mb: 2 }}
+                >
+                    <Stack direction='row' alignItems='center' gap={1.25}>
+                        <Box
+                            sx={(t) => ({
+                                width: 40,
+                                height: 40,
+                                borderRadius: 1.5,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                backgroundColor: '#7dd3fc',
+                                border: `2px solid ${t.palette.divider}`,
+                                boxShadow: `3px 3px 0 0 ${t.palette.divider}`,
+                                color: '#0a0a0a',
+                            })}
+                        >
+                            <ReceiptLongRoundedIcon />
+                        </Box>
+                        <Box>
+                            <Typography variant='h6' sx={{ fontWeight: 800, lineHeight: 1.2 }}>
+                                All Transactions
+                            </Typography>
+                            <Typography variant='caption' color='text.secondary' sx={{ fontWeight: 600 }}>
+                                {transactions.length} entries
+                            </Typography>
+                        </Box>
+                    </Stack>
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.25}>
+                        <TextField
+                            size='small'
+                            placeholder='Search description…'
+                            value={searchText}
+                            onChange={(e) => setSearchText(e.target.value)}
+                            InputProps={{
+                                startAdornment: <SearchRoundedIcon sx={{ mr: 1, fontSize: 18 }} />,
+                            }}
+                            sx={{ minWidth: { xs: '100%', sm: 260 } }}
+                        />
+                        <Button
+                            variant='contained'
+                            color='primary'
+                            startIcon={<AddRoundedIcon />}
+                            onClick={handleCreateTransaction}
+                        >
+                            New transaction
+                        </Button>
+                    </Stack>
+                </Stack>
+
+                {error ? (
+                    <Alert severity='error'>Couldn't load transactions.</Alert>
+                ) : isLoading ? (
+                    <Skeleton variant='rounded' height={520} />
                 ) : (
-                    <Box sx={{
-                        height: 600, width: '100%'
-                    }}>
+                    <Box sx={{ height: 560, width: '100%' }}>
                         <DataGrid
-                            rows={filteredTransactions}
+                            rows={filtered}
                             columns={columns}
-                            initialState={{
-                                pagination: {
-                                    paginationModel: {
-                                        pageSize: 10,
-                                    },
-                                },
-                            }}
-                            onRowClick={(e) => {
-                                let id = e.id ? Number(e.id) : null;
-                                Dispatch(openCreateTransactinModal({ open: true, id, data: e.row }));
-                            }}
+                            initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
+                            onRowClick={(e) =>
+                                dispatch(
+                                    openCreateTransactinModal({
+                                        open: true,
+                                        id: e.id ? Number(e.id) : null,
+                                        data: e.row,
+                                    }),
+                                )
+                            }
                             pageSizeOptions={[10, 20, 50]}
                             checkboxSelection
                             disableRowSelectionOnClick
+                            sx={(t) => ({
+                                border: `2px solid ${t.palette.divider}`,
+                                borderRadius: 2,
+                                boxShadow: `3px 3px 0 0 ${t.palette.divider}`,
+                                fontWeight: 500,
+                                '& .MuiDataGrid-columnHeaders': {
+                                    backgroundColor: '#fcd34d',
+                                    borderBottom: `2px solid ${t.palette.divider}`,
+                                    fontWeight: 800,
+                                    color: '#0a0a0a',
+                                },
+                                '& .MuiDataGrid-columnHeader': {
+                                    fontWeight: 800,
+                                },
+                                '& .MuiDataGrid-cell': {
+                                    borderColor: t.palette.divider,
+                                },
+                                '& .MuiDataGrid-row': {
+                                    cursor: 'pointer',
+                                    '&:hover': {
+                                        backgroundColor: t.palette.mode === 'dark'
+                                            ? 'rgba(254,246,228,0.06)'
+                                            : 'rgba(252,211,77,0.18)',
+                                    },
+                                },
+                                '& .MuiDataGrid-footerContainer': {
+                                    borderTop: `2px solid ${t.palette.divider}`,
+                                },
+                            })}
                         />
                     </Box>
                 )}
-                <Dialog
-                    open={deleteId !== null}
-                    onClose={handleCancelDelete}
-                    aria-labelledby="alert-dialog-title"
-                    aria-describedby="alert-dialog-description"
-                >
-                    <DialogTitle id="alert-dialog-title">{"Confirm Delete"}</DialogTitle>
+
+                <Dialog open={deleteId !== null} onClose={() => setDeleteId(null)} maxWidth='xs' fullWidth>
+                    <DialogTitle sx={{ fontWeight: 800 }}>Delete transaction?</DialogTitle>
                     <DialogContent>
-                        <DialogContentText id="alert-dialog-description">
-                            Are you sure you want to delete this transaction?
+                        <DialogContentText sx={{ fontWeight: 500 }}>
+                            This will permanently remove the transaction. You can't undo this.
                         </DialogContentText>
                     </DialogContent>
-                    <DialogActions>
-                        <Button onClick={handleCancelDelete} color="primary">
-                            No
+                    <DialogActions sx={{ px: 3, pb: 2 }}>
+                        <Button onClick={() => setDeleteId(null)} variant='outlined'>
+                            Cancel
                         </Button>
-                        <Button onClick={handleConfirmDelete} color="primary" autoFocus>
-                            Yes
+                        <Button onClick={handleConfirmDelete} variant='contained' color='error' autoFocus>
+                            Delete
                         </Button>
                     </DialogActions>
                 </Dialog>
-            </Box>
-        </Container>
-    );
-};
-const CustomToolbar: React.FC = () => {
-    return (
-        <GridToolbarContainer>
-            <GridToolbarFilterButton />
-            <GridToolbarDensitySelector />
-            <GridToolbarExport />
-        </GridToolbarContainer>
+            </CardContent>
+        </Card>
     );
 };
 

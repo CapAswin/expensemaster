@@ -1,12 +1,28 @@
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import axiosInstance from '../_utils/axios';
-import { Box, Button, Grid, Card, Typography, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, CardContent } from '@mui/material';
-import CallMadeIcon from '@mui/icons-material/CallMade';
-import CallReceivedIcon from '@mui/icons-material/CallReceived';
-import AddIcon from '@mui/icons-material/Add';
-import CreateIcon from '@mui/icons-material/Create';
-import DeleteIcon from '@mui/icons-material/Delete';
+import {
+    Box,
+    Button,
+    Grid,
+    Card,
+    Typography,
+    Dialog,
+    DialogActions,
+    DialogContent,
+    DialogContentText,
+    DialogTitle,
+    CardContent,
+    IconButton,
+    Tooltip,
+    Stack,
+    Skeleton,
+    Alert,
+} from '@mui/material';
+import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import EditRoundedIcon from '@mui/icons-material/EditRounded';
+import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
+import CategoryRoundedIcon from '@mui/icons-material/CategoryRounded';
 import { useDispatch } from 'react-redux';
 import { openCreateCategory } from '../redux/modalSlice';
 import { CategoryData } from './createCategory';
@@ -19,6 +35,8 @@ interface Category {
     TransactionDate: string;
 }
 
+const CARD_COLORS = ['#fcd34d', '#ff6b9d', '#bef264', '#7dd3fc', '#fb923c', '#c4b5fd'];
+
 const fetchCategories = async (): Promise<Category[]> => {
     const response = await axiosInstance.get('api/categories/');
     return response.data;
@@ -30,6 +48,7 @@ const deleteCategory = async (id: number): Promise<void> => {
 
 const Manage: React.FC = () => {
     const queryClient = useQueryClient();
+    const dispatch = useDispatch();
     const { data: categories, error, isLoading } = useQuery<Category[]>({
         queryKey: ['categories'],
         queryFn: fetchCategories,
@@ -43,107 +62,184 @@ const Manage: React.FC = () => {
         queryClient.invalidateQueries({ queryKey: ['categories'] });
         setOpen(false);
     };
-    let Dispatch = useDispatch()
+
     const handleOpenDialog = (id: number) => {
         setSelectedCategoryId(id);
         setOpen(true);
     };
 
-    const handleCloseDialog = () => {
-        setOpen(false);
-    };
+    const handleCloseDialog = () => setOpen(false);
 
-    const handleEdit = (id: number, e: CategoryData) => {
-        // Implement your edit logic here
-        Dispatch(openCreateCategory({ open: true, id, data: e }))
-        console.log('Edit category', e);
-    };
-    const handelCreateCategory = () => {
-        // Implement your edit logic here
-        Dispatch(openCreateCategory({ open: true, id: null, data: null }))
-    };
+    const handleEdit = (id: number, e: CategoryData) =>
+        dispatch(openCreateCategory({ open: true, id, data: e }));
 
-    if (isLoading) return <div>Loading...</div>;
-    if (error) return <div>Error loading categories</div>;
+    const handelCreateCategory = () =>
+        dispatch(openCreateCategory({ open: true, id: null, data: null }));
 
     return (
-        <>
-            <Box sx={{
-                background: "transparent", boxShadow: `
-    inset 0 0 0.5px 1px hsla(0, 0%, 100%, 0.075),
-    0 0 0 1px hsla(0, 0%, 0%, 0.05),
-    0 0.3px 0.4px hsla(0, 0%, 0%, 0.02),
-    0 0.9px 1.5px hsla(0, 0%, 0%, 0.045),
-    0 3.5px 6px hsla(0, 0%, 0%, 0.09)`,
-                minHeight: "50vh",
-            }}>
-                <Box sx={{
-                    display: 'flex', justifyContent: 'space-between',
-                    //  border: '1px solid black', 
-                    padding: 1
-                }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                        <CallMadeIcon color='success' />
-                        <Typography sx={{ fontSize: '20px', fontFamily: 'cursive', fontWeight: 'bold' }}>
-                            Categories
-                        </Typography>
-                    </Box>
-                    <Button onClick={handelCreateCategory} variant='outlined'>
-                        <AddIcon /> Create Category
+        <Card>
+            <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
+                <Stack
+                    direction={{ xs: 'column', sm: 'row' }}
+                    justifyContent='space-between'
+                    alignItems={{ xs: 'flex-start', sm: 'center' }}
+                    gap={1.5}
+                    sx={{ mb: 2.5 }}
+                >
+                    <Stack direction='row' alignItems='center' gap={1.25}>
+                        <Box
+                            sx={(t) => ({
+                                width: 40,
+                                height: 40,
+                                borderRadius: 1.5,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                backgroundColor: '#bef264',
+                                border: `2px solid ${t.palette.divider}`,
+                                boxShadow: `3px 3px 0 0 ${t.palette.divider}`,
+                                color: '#0a0a0a',
+                            })}
+                        >
+                            <CategoryRoundedIcon />
+                        </Box>
+                        <Box>
+                            <Typography variant='h6' sx={{ fontWeight: 800, lineHeight: 1.2 }}>
+                                Categories
+                            </Typography>
+                            <Typography variant='caption' color='text.secondary' sx={{ fontWeight: 600 }}>
+                                {categories?.length ?? 0} total
+                            </Typography>
+                        </Box>
+                    </Stack>
+                    <Button
+                        onClick={handelCreateCategory}
+                        variant='contained'
+                        color='primary'
+                        startIcon={<AddRoundedIcon />}
+                    >
+                        Create category
                     </Button>
-                </Box>
+                </Stack>
 
-                <Box sx={{ p: 2 }}>
-                    <Grid container sx={{ m: 0, width: '100%' }}>
-                        {categories?.map((category) => (
-                            <Grid item xs={12} sm={6} md={4} lg={3} key={category.id} sx={{ margin: 0, padding: 1 }}>
-                                <Card sx={{ p: 0 }}>
-                                    <CardContent sx={{ p: 0, pb: 0, padding: "5px !important" }}>
-                                        <Box sx={{ display: 'flex', flexDirection: 'row-reverse' }}>
-                                            <Button onClick={() => handleEdit(category.id, category)}>
-                                                <CreateIcon />
-                                            </Button>
-                                        </Box>
-                                        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', p: 2, fontWeight: "900", fontSize: "px" }}>
-                                            {category.Name}
-                                        </Box>
-                                        <Typography>{category.Description}</Typography>
-                                        <Button fullWidth onClick={() => handleOpenDialog(category.id)}>
-                                            <DeleteIcon /> Delete
-                                        </Button>
-                                    </CardContent>
-                                </Card>
+                {error ? (
+                    <Alert severity='error'>Couldn't load categories.</Alert>
+                ) : isLoading ? (
+                    <Grid container spacing={2}>
+                        {Array.from({ length: 6 }).map((_, i) => (
+                            <Grid item xs={12} sm={6} md={4} lg={3} key={i}>
+                                <Skeleton variant='rounded' height={140} />
                             </Grid>
                         ))}
                     </Grid>
-                </Box>
-            </Box>
+                ) : categories && categories.length > 0 ? (
+                    <Grid container spacing={2}>
+                        {categories.map((category, idx) => {
+                            const bg = CARD_COLORS[idx % CARD_COLORS.length];
+                            return (
+                                <Grid item xs={12} sm={6} md={4} lg={3} key={category.id}>
+                                    <Card
+                                        sx={{
+                                            height: '100%',
+                                            backgroundColor: bg,
+                                            color: '#0a0a0a',
+                                            '&:hover': {
+                                                transform: 'translate(-2px, -2px)',
+                                                boxShadow: (t) => `7px 7px 0 0 ${t.palette.divider}`,
+                                            },
+                                        }}
+                                    >
+                                        <CardContent sx={{ p: 2, display: 'flex', flexDirection: 'column', height: '100%' }}>
+                                            <Stack direction='row' justifyContent='space-between' alignItems='flex-start'>
+                                                <Typography
+                                                    variant='subtitle1'
+                                                    sx={{ fontWeight: 800, wordBreak: 'break-word', pr: 1 }}
+                                                >
+                                                    {category.Name}
+                                                </Typography>
+                                                <Stack direction='row' spacing={0.5}>
+                                                    <Tooltip title='Edit'>
+                                                        <IconButton
+                                                            size='small'
+                                                            onClick={() => handleEdit(category.id, category)}
+                                                            sx={{ bgcolor: '#fff' }}
+                                                        >
+                                                            <EditRoundedIcon fontSize='small' />
+                                                        </IconButton>
+                                                    </Tooltip>
+                                                    <Tooltip title='Delete'>
+                                                        <IconButton
+                                                            size='small'
+                                                            onClick={() => handleOpenDialog(category.id)}
+                                                            sx={{ bgcolor: '#fff' }}
+                                                        >
+                                                            <DeleteRoundedIcon fontSize='small' />
+                                                        </IconButton>
+                                                    </Tooltip>
+                                                </Stack>
+                                            </Stack>
+                                            <Typography
+                                                variant='body2'
+                                                sx={{ fontWeight: 600, mt: 1.25, color: 'rgba(10,10,10,0.75)' }}
+                                            >
+                                                {category.Description || 'No description'}
+                                            </Typography>
+                                        </CardContent>
+                                    </Card>
+                                </Grid>
+                            );
+                        })}
+                    </Grid>
+                ) : (
+                    <Box
+                        sx={(t) => ({
+                            textAlign: 'center',
+                            py: 6,
+                            px: 3,
+                            border: `2px dashed ${t.palette.divider}`,
+                            borderRadius: 2,
+                        })}
+                    >
+                        <Typography variant='h6' sx={{ fontWeight: 800, mb: 0.5 }}>
+                            No categories yet
+                        </Typography>
+                        <Typography variant='body2' color='text.secondary' sx={{ mb: 2 }}>
+                            Create your first category to organize transactions.
+                        </Typography>
+                        <Button
+                            onClick={handelCreateCategory}
+                            variant='contained'
+                            color='primary'
+                            startIcon={<AddRoundedIcon />}
+                        >
+                            Create category
+                        </Button>
+                    </Box>
+                )}
+            </CardContent>
 
-
-
-            <Dialog open={open} onClose={handleCloseDialog}>
-                <DialogTitle>Confirm Deletion</DialogTitle>
+            <Dialog open={open} onClose={handleCloseDialog} maxWidth='xs' fullWidth>
+                <DialogTitle sx={{ fontWeight: 800 }}>Confirm deletion</DialogTitle>
                 <DialogContent>
-                    <DialogContentText>Are you sure you want to delete this category?</DialogContentText>
+                    <DialogContentText sx={{ fontWeight: 500 }}>
+                        Are you sure you want to delete this category? This action cannot be undone.
+                    </DialogContentText>
                 </DialogContent>
-                <DialogActions>
-                    <Button onClick={handleCloseDialog} color="primary">
-                        No
+                <DialogActions sx={{ px: 3, pb: 2 }}>
+                    <Button onClick={handleCloseDialog} variant='outlined'>
+                        Cancel
                     </Button>
                     <Button
-                        onClick={() => {
-                            if (selectedCategoryId !== null) {
-                                handleDelete(selectedCategoryId);
-                            }
-                        }}
-                        color="primary"
+                        onClick={() => selectedCategoryId !== null && handleDelete(selectedCategoryId)}
+                        variant='contained'
+                        color='error'
                         autoFocus
                     >
-                        Yes
+                        Delete
                     </Button>
                 </DialogActions>
             </Dialog>
-        </>
+        </Card>
     );
 };
 

@@ -10,21 +10,25 @@ import {
     Select,
     FormControl,
     InputLabel,
-    Container,
-    CircularProgress,
     Modal,
-    Paper
+    Stack,
+    IconButton,
+    Divider,
+    Card,
 } from '@mui/material';
 import { CustomAutocomplete } from '../_components/form/inputs/autoComplete';
 import { TextInput } from '../_components';
-import { Close } from '@mui/icons-material';
+import { CloseRounded } from '@mui/icons-material';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState } from '../redux/store';
 import { openCreateTransactinModal } from '../redux/modalSlice';
-import { showErrorSnackbar, showSuccessSnackbar, showWarningSnackbar } from '../_components/snackbar/Snackbar';
-import moment from 'moment'
-import { DatePicker } from '@mui/x-date-pickers';
-import { format } from 'path';
+import {
+    showErrorSnackbar,
+    showSuccessSnackbar,
+    showWarningSnackbar,
+} from '../_components/snackbar/Snackbar';
+import moment from 'moment';
+
 interface Category {
     id: number;
     Name: string;
@@ -32,8 +36,9 @@ interface Category {
     UserID: string;
     TransactionDate: string;
 }
+
 interface TransactionData {
-    id?: number | null
+    id?: number | null;
     Description: string;
     Amount: number;
     CategoryID: number;
@@ -46,96 +51,94 @@ const fetchCategories = async (): Promise<Category[]> => {
     return response.data;
 };
 
-
 const CreateTransaction: React.FC = () => {
-    let open = useSelector((state: RootState) => state.modal.createTransaction)
-    let datas = open.data
+    const open = useSelector((state: RootState) => state.modal.createTransaction);
+    const datas = open.data;
+    const dispatch = useDispatch();
+    const queryClient = useQueryClient();
+
     const [description, setDescription] = useState<string>('');
     const [amount, setAmount] = useState<number>(0);
     const [categoryID, setCategoryID] = useState<any>(null);
-    const [transactionDate, setTransactionDate] = useState<string>(moment(new Date()).toISOString().split('T')[0]);
-    console.log(transactionDate)
+    const [transactionDate, setTransactionDate] = useState<string>(
+        moment(new Date()).toISOString().split('T')[0],
+    );
     const [transactionType, setTransactionType] = useState<string>('Income');
-    let Dispatch = useDispatch()
-    const queryClient = useQueryClient();
 
     const handleClose = () => {
-        Dispatch(openCreateTransactinModal({ open: false, id: null, data: null }))
-        setDescription('')
-        setAmount(0)
-        setCategoryID(null)
-        setTransactionDate('')
-    }
+        dispatch(openCreateTransactinModal({ open: false, id: null, data: null }));
+        setDescription('');
+        setAmount(0);
+        setCategoryID(null);
+        setTransactionDate('');
+    };
 
-    const createTransaction = async (transaction: TransactionData): Promise<void> => {
-        delete transaction.id
-        await axiosInstance.post('api/insert/', transaction)
+    const createTransaction = async (t: TransactionData): Promise<void> => {
+        delete t.id;
+        await axiosInstance.post('api/insert/', t);
     };
-    const updateTransaction = async (transaction: TransactionData): Promise<void> => {
-        await axiosInstance.put('/api/update/', transaction)
+    const updateTransaction = async (t: TransactionData): Promise<void> => {
+        await axiosInstance.put('/api/update/', t);
     };
-    const { data: categories = [], isLoading: isCategoriesLoading, error: categoriesError } = useQuery<Category[]>({
+
+    const { data: categories = [] } = useQuery<Category[]>({
         queryKey: ['categories'],
         queryFn: fetchCategories,
-
     });
+
     const mutation = useMutation<void, unknown, TransactionData>({
         mutationFn: open.id == null ? createTransaction : updateTransaction,
         onSuccess: () => {
-            showSuccessSnackbar(open.id == null ? 'Transaction created successfully !' : "Transaction updated successfully !");
+            showSuccessSnackbar(
+                open.id == null
+                    ? 'Transaction created successfully!'
+                    : 'Transaction updated successfully!',
+            );
             queryClient.invalidateQueries({ queryKey: ['transactions'] });
-            handleClose()
+            handleClose();
         },
         onError: (error: any) => {
-            showErrorSnackbar(`Failed to create transaction: ${error.response?.data?.message || error.message}`);
-        }
+            showErrorSnackbar(
+                `Failed to save transaction: ${error.response?.data?.message || error.message}`,
+            );
+        },
     });
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!amount) {
-            return showWarningSnackbar("Enter an amount !")
-        }
-        if (!description) {
-            return showWarningSnackbar("Enter a description")
-        }
-        if (!categoryID) {
-            return showWarningSnackbar("Select a category")
-        }
-        if(!transactionDate){
-            return showWarningSnackbar("Select a Transaction Date")
-        }
-        if(!transactionType){
-            return showWarningSnackbar("Select a Transaction type")
-        }
-        mutation.mutate({ Description: description, Amount: amount, CategoryID: categoryID?.id ?? categoryID, TransactionDate: transactionDate, TransactionType: transactionType, id: open?.id });
+        if (!amount) return showWarningSnackbar('Enter an amount!');
+        if (!description) return showWarningSnackbar('Enter a description');
+        if (!categoryID) return showWarningSnackbar('Select a category');
+        if (!transactionDate) return showWarningSnackbar('Select a transaction date');
+        if (!transactionType) return showWarningSnackbar('Select a transaction type');
+        mutation.mutate({
+            Description: description,
+            Amount: amount,
+            CategoryID: categoryID?.id ?? categoryID,
+            TransactionDate: transactionDate,
+            TransactionType: transactionType,
+            id: open?.id,
+        });
     };
+
     function formatDate(dateString: string): string {
         const date = new Date(dateString);
-        const year = date.getUTCFullYear();
-        const month = String(date.getUTCMonth() + 1).padStart(2, '0'); // getUTCMonth() returns 0-based month, so add 1
-        const day = String(date.getUTCDate()).padStart(2, '0');
-
-        return `${year}-${month}-${day}`;
+        return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(
+            date.getUTCDate(),
+        ).padStart(2, '0')}`;
     }
+
     useEffect(() => {
         if (datas) {
-            setDescription(datas.Description)
-            setAmount(datas.Amount)
-            setCategoryID(datas.CategoryID)
-            setTransactionDate(formatDate(datas.TransactionDate))
-            setTransactionType(datas.TransactionType)
+            setDescription(datas.Description);
+            setAmount(datas.Amount);
+            setCategoryID(datas.CategoryID);
+            setTransactionDate(formatDate(datas.TransactionDate));
+            setTransactionType(datas.TransactionType);
         }
-    }, [datas])
+    }, [datas]);
 
-    // if (isCategoriesLoading) {
-    //     return <CircularProgress />;
-    // }
-
-    // if (categoriesError) {
-    //     return <Typography color="error">Failed to load categories</Typography>;
-    // }
-    // console.log(categories)
+    const isUpdate = open.id != null;
 
     return (
         <Modal open={open.open} onClose={handleClose}>
@@ -145,82 +148,97 @@ const CreateTransaction: React.FC = () => {
                     top: '50%',
                     left: '50%',
                     transform: 'translate(-50%, -50%)',
+                    width: { xs: 'calc(100% - 32px)', sm: 460 },
+                    maxWidth: '100%',
                 }}
             >
-                <Container maxWidth="sm">
-                    <Paper elevation={1}  sx={{ mt: 3, p: 2 }}>
-                        <Box sx={{ display: "flex", justifyContent: "space-between" }}>
-                            <Typography variant="h5" gutterBottom>
-                                {open.id == null ? "Create Transaction" : "Update Transaction"}
-                            </Typography>
-                            <Button onClick={handleClose}><Close sx={{ color: "red", p: 0 }} /></Button>
-                        </Box>
-                        <TextInput
-                            size='small'
-                            label="Amount"
-                            type="number"
-                            value={amount}
-                            onChange={(e) => setAmount(parseFloat(e.target.value))}
-                            required
-                            fullWidth
-                            margin="normal"
-                        />
-                        <TextInput
-                            size='small'
-                            label="Description"
-                            value={description}
-                            onChange={(e) => setDescription(e.target.value)}
-                            required
-                            fullWidth
-                            margin="normal"
-                        />
-
-                        <FormControl fullWidth margin="normal">
-                            <CustomAutocomplete
-                                onChange={(value) => { setCategoryID(value) }}
-                                options={categories}
-                                label='Category'
-                                descriptionLength={20}
-                                value={categoryID}
-
-                            />
-
-                        </FormControl>
-                        <TextField
-                            size='small'
-                            label="Transaction Date"
-                            type="date"
-                            value={transactionDate}
-                            onChange={(e) => {
-                                console.log(e.target.value)
-                                setTransactionDate(e.target.value)
-                            }}
-                            required
-                            fullWidth
-                            margin="normal"
-                            placeholder="dd/mm/yyyy"
-                            InputLabelProps={{
-                                shrink: true,
-                            }}
-                        />
-                        <FormControl fullWidth margin="normal">
-                            <InputLabel>Transaction Type</InputLabel>
-                            <Select
-                                label="Transaction Type"
+                <Card sx={{ p: 0 }}>
+                    <Stack
+                        direction='row'
+                        justifyContent='space-between'
+                        alignItems='center'
+                        sx={(t) => ({
+                            px: 2.5,
+                            py: 1.5,
+                            backgroundColor: '#fcd34d',
+                            borderBottom: `2px solid ${t.palette.divider}`,
+                        })}
+                    >
+                        <Typography variant='h6' sx={{ fontWeight: 800, color: '#0a0a0a' }}>
+                            {isUpdate ? 'Update Transaction' : 'New Transaction'}
+                        </Typography>
+                        <IconButton onClick={handleClose} size='small' sx={{ bgcolor: '#fff' }}>
+                            <CloseRounded fontSize='small' />
+                        </IconButton>
+                    </Stack>
+                    <Box component='form' onSubmit={handleSubmit} sx={{ p: 2.5 }}>
+                        <Stack spacing={2}>
+                            <TextInput
                                 size='small'
-                                value={transactionType}
-                                onChange={(e) => setTransactionType(e.target.value)}
+                                label='Amount'
+                                type='number'
+                                value={amount}
+                                onChange={(e) => setAmount(parseFloat(e.target.value))}
                                 required
-                            >
-                                <MenuItem value="Income">Income</MenuItem>
-                                <MenuItem value="Expense">Expense</MenuItem>
-                            </Select>
-                        </FormControl>
-                        <Button type="button" onClick={handleSubmit} variant="contained" color="primary" fullWidth sx={{ mt: 2 }}>
-                            {open.id == null ? "Create Transaction" : "Update Transaction"}
-                        </Button>
-                    </Paper>
-                </Container>
+                                fullWidth
+                            />
+                            <TextInput
+                                size='small'
+                                label='Description'
+                                value={description}
+                                onChange={(e) => setDescription(e.target.value)}
+                                required
+                                fullWidth
+                            />
+                            <FormControl fullWidth>
+                                <CustomAutocomplete
+                                    onChange={(value) => setCategoryID(value)}
+                                    options={categories}
+                                    label='Category'
+                                    descriptionLength={20}
+                                    value={categoryID}
+                                />
+                            </FormControl>
+                            <TextField
+                                size='small'
+                                label='Transaction date'
+                                type='date'
+                                value={transactionDate}
+                                onChange={(e) => setTransactionDate(e.target.value)}
+                                required
+                                fullWidth
+                                placeholder='dd/mm/yyyy'
+                                InputLabelProps={{ shrink: true }}
+                            />
+                            <FormControl fullWidth size='small'>
+                                <InputLabel>Transaction type</InputLabel>
+                                <Select
+                                    label='Transaction type'
+                                    value={transactionType}
+                                    onChange={(e) => setTransactionType(e.target.value)}
+                                    required
+                                >
+                                    <MenuItem value='Income'>Income</MenuItem>
+                                    <MenuItem value='Expense'>Expense</MenuItem>
+                                </Select>
+                            </FormControl>
+                            <Divider sx={{ my: 0.5 }} />
+                            <Stack direction='row' spacing={1.25} justifyContent='flex-end'>
+                                <Button variant='outlined' onClick={handleClose}>
+                                    Cancel
+                                </Button>
+                                <Button
+                                    type='submit'
+                                    variant='contained'
+                                    color='primary'
+                                    disabled={mutation.status === 'pending'}
+                                >
+                                    {isUpdate ? 'Update' : 'Create'}
+                                </Button>
+                            </Stack>
+                        </Stack>
+                    </Box>
+                </Card>
             </Box>
         </Modal>
     );

@@ -16,7 +16,7 @@ import AboutUs from './about';
 
 const DashboardHome: React.FC = () => {
 
-    const [isDarkMode, setIsDarkMode] = useState<boolean>(true);
+    const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
     const dispatch: AppDispatch = useDispatch();
     let fetch = async () => {
         dispatch(fetchCategories())

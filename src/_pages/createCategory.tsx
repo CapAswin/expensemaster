@@ -1,127 +1,152 @@
 import React, { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import axiosInstance from '../_utils/axios';
-import { TextField, Button, Box, Typography, Container, CircularProgress, Modal, Paper } from '@mui/material';
+import {
+    TextField,
+    Button,
+    Box,
+    Typography,
+    Modal,
+    Card,
+    Stack,
+    IconButton,
+    Divider,
+} from '@mui/material';
 import { useDispatch, useSelector } from 'react-redux';
 import { showSuccessSnackbar, showWarningSnackbar } from '../_components/snackbar/Snackbar';
 import { openCreateCategory } from '../redux/modalSlice';
 import { RootState } from '../redux/store';
-import { Close } from '@mui/icons-material';
+import { CloseRounded } from '@mui/icons-material';
 
 export interface CategoryData {
-  id?: number | null;
-  Description: string;
-  Name: string;
-  TransactionDate: string;
+    id?: number | null;
+    Description: string;
+    Name: string;
+    TransactionDate: string;
 }
 
-interface TransactionData {
-  id?: number | null
-  Description: string;
-  Amount: number;
-  CategoryID: number;
-  TransactionDate: string;
-  TransactionType: string;
-}
 const addCategory = async (category: CategoryData): Promise<void> => {
-  await axiosInstance.post('api/insertCategory/', category);
+    await axiosInstance.post('api/insertCategory/', category);
 };
 const updateCategory = async (category: CategoryData): Promise<void> => {
-  await axiosInstance.put('api/updateCategory/', category);
+    await axiosInstance.put('api/updateCategory/', category);
 };
 
 const CreateCategory: React.FC = () => {
-  const [description, setDescription] = useState<string>('');
-  const [name, setName] = useState<string>('');
-  let open = useSelector((state: RootState) => state.modal.createCategory)
-  let datas = open
-  const queryClient = useQueryClient();
-  const mutation = useMutation<void, unknown, CategoryData>({
-    mutationFn: open.id == null ? addCategory : updateCategory,
-    onSuccess: () => {
-      showSuccessSnackbar(`Category ${open.id == null ?"added":"updated"} successfully!`);
-      queryClient.invalidateQueries({ queryKey: ['categories'] });
-      handleClose()
-    },
-    onError: (error: any) => {
-      showWarningSnackbar(`Failed to add category: ${error.response?.data?.message || error.message}`);
-    }
-  });
-  let Dispatch = useDispatch()
-  const handleClose = () => Dispatch(openCreateCategory({ open: false, id: null, data: null }))
+    const [description, setDescription] = useState<string>('');
+    const [name, setName] = useState<string>('');
+    const open = useSelector((state: RootState) => state.modal.createCategory);
+    const queryClient = useQueryClient();
+    const dispatch = useDispatch();
 
-  const handleAddCategory = (e: React.FormEvent) => {
-    e.preventDefault();
-    const currentDate = new Date().toISOString().split('T')[0];
-    open.id == null ? mutation.mutate({
-      Description: description,
-      Name: name,
-      TransactionDate: currentDate,
-    }) : mutation.mutate({
-      id: open.id,
-      Description: description,
-      Name: name,
-      TransactionDate: currentDate,
-    })
-  };
-  useEffect(() => {
-    if (datas) {
-      setDescription(datas.data?.Description ?? '')
-      setName(datas.data?.Name ?? '')
-      // setCategoryID(datas.CategoryID)
-      // setTransactionDate(formatDate(datas.TransactionDate))
-      // setTransactionType(datas.TransactionType)
-    }
-  }, [datas])
-  return (
-    <Modal open={open.open} onClose={handleClose}>
-      <Box
-        sx={{
-          position: 'absolute',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-        }}
-      >
-        <Container maxWidth="sm">
-          <Paper elevation={1} component="form" onSubmit={handleAddCategory} sx={{ mt: 3, p: 2 }}>
-            <Box sx={{ display: "flex", justifyContent: "space-between" }}>
-              <Typography variant="h5" gutterBottom>
-                {open.id == null ? "ADD CATEGORY" : "UPDATE CATEGORY"}
-              </Typography>
-              <Button onClick={handleClose}><Close sx={{ color: "red", p: 0 }} /></Button>
+    const mutation = useMutation<void, unknown, CategoryData>({
+        mutationFn: open.id == null ? addCategory : updateCategory,
+        onSuccess: () => {
+            showSuccessSnackbar(`Category ${open.id == null ? 'added' : 'updated'} successfully!`);
+            queryClient.invalidateQueries({ queryKey: ['categories'] });
+            handleClose();
+        },
+        onError: (error: any) => {
+            showWarningSnackbar(
+                `Failed to save category: ${error.response?.data?.message || error.message}`,
+            );
+        },
+    });
+
+    const handleClose = () => dispatch(openCreateCategory({ open: false, id: null, data: null }));
+
+    const handleAddCategory = (e: React.FormEvent) => {
+        e.preventDefault();
+        const currentDate = new Date().toISOString().split('T')[0];
+        const payload: CategoryData = {
+            Description: description,
+            Name: name,
+            TransactionDate: currentDate,
+        };
+        if (open.id != null) payload.id = open.id;
+        mutation.mutate(payload);
+    };
+
+    useEffect(() => {
+        if (open) {
+            setDescription(open.data?.Description ?? '');
+            setName(open.data?.Name ?? '');
+        }
+    }, [open]);
+
+    const isUpdate = open.id != null;
+
+    return (
+        <Modal open={open.open} onClose={handleClose}>
+            <Box
+                sx={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    width: { xs: 'calc(100% - 32px)', sm: 440 },
+                    maxWidth: '100%',
+                }}
+            >
+                <Card sx={{ p: 0 }}>
+                    <Stack
+                        direction='row'
+                        justifyContent='space-between'
+                        alignItems='center'
+                        sx={(t) => ({
+                            px: 2.5,
+                            py: 1.5,
+                            backgroundColor: '#bef264',
+                            borderBottom: `2px solid ${t.palette.divider}`,
+                        })}
+                    >
+                        <Typography variant='h6' sx={{ fontWeight: 800, color: '#0a0a0a' }}>
+                            {isUpdate ? 'Update Category' : 'New Category'}
+                        </Typography>
+                        <IconButton onClick={handleClose} size='small' sx={{ bgcolor: '#fff' }}>
+                            <CloseRounded fontSize='small' />
+                        </IconButton>
+                    </Stack>
+                    <Box component='form' onSubmit={handleAddCategory} sx={{ p: 2.5 }}>
+                        <Stack spacing={2}>
+                            <TextField
+                                size='small'
+                                label='Name'
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
+                                required
+                                fullWidth
+                            />
+                            <TextField
+                                size='small'
+                                label='Description'
+                                value={description}
+                                onChange={(e) => setDescription(e.target.value)}
+                                required
+                                fullWidth
+                                multiline
+                                minRows={2}
+                            />
+                            <Divider sx={{ my: 0.5 }} />
+                            <Stack direction='row' spacing={1.25} justifyContent='flex-end'>
+                                <Button variant='outlined' onClick={handleClose}>
+                                    Cancel
+                                </Button>
+                                <Button
+                                    type='submit'
+                                    variant='contained'
+                                    color='primary'
+                                    disabled={mutation.status === 'pending'}
+                                >
+                                    {isUpdate ? 'Update' : 'Create'}
+                                </Button>
+                            </Stack>
+                        </Stack>
+                    </Box>
+                </Card>
             </Box>
-            <TextField
-              size='small'
-              label="Name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              fullWidth
-              margin="normal"
-            />
-            <TextField
-              size='small'
-              label="Description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              required
-              fullWidth
-              margin="normal"
-            />
-
-            {mutation.status === 'pending' ? (
-              <CircularProgress />
-            ) : (
-              <Button type="submit" variant="contained" color="primary" fullWidth sx={{ mt: 2 }}>
-                {open.id == null ? "Add Category" : "Update Category"}
-              </Button>
-            )}
-          </Paper>
-        </Container>
-      </Box>
-    </Modal>
-  );
+        </Modal>
+    );
 };
 
 export default CreateCategory;
