@@ -77,6 +77,7 @@ const buildComponents = (mode: 'light' | 'dark') => {
             },
         },
         MuiPaper: {
+            defaultProps: { elevation: 0 },
             styleOverrides: {
                 root: {
                     backgroundImage: 'none',
@@ -86,9 +87,17 @@ const buildComponents = (mode: 'light' | 'dark') => {
                     borderRadius: 12,
                 },
                 elevation0: { boxShadow: 'none', border: 'none' },
+                // Force every elevation level to use our neobrutalism shadow color (ink)
+                ...Object.fromEntries(
+                    Array.from({ length: 24 }, (_, i) => [
+                        `elevation${i + 1}`,
+                        { boxShadow: shadow(Math.min(8, 3 + Math.floor(i / 3))) },
+                    ]),
+                ),
             },
         },
         MuiCard: {
+            defaultProps: { elevation: 0 },
             styleOverrides: {
                 root: {
                     backgroundImage: 'none',
@@ -231,8 +240,8 @@ const buildComponents = (mode: 'light' | 'dark') => {
                     fontWeight: 700,
                     minHeight: 40,
                     minWidth: 0,
-                    padding: '6px 14px',
-                    margin: '0 2px',
+                    padding: '8px 18px',
+                    margin: '0 3px',
                     borderRadius: 10,
                     color: ink,
                     border: '2px solid transparent',

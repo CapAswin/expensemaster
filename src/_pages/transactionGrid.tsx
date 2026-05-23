@@ -227,20 +227,44 @@ const TransactionDataGrid: React.FC = () => {
                             disableRowSelectionOnClick
                             sx={(t) => ({
                                 border: `2px solid ${t.palette.divider}`,
-                                borderRadius: 2,
+                                borderRadius: 2.5,
                                 boxShadow: `3px 3px 0 0 ${t.palette.divider}`,
+                                overflow: 'hidden',
                                 fontWeight: 500,
+                                color: t.palette.text.primary,
+                                // Column header bar — yellow strip with dark text, both modes
                                 '& .MuiDataGrid-columnHeaders': {
-                                    backgroundColor: '#fcd34d',
+                                    backgroundColor: '#fcd34d !important',
                                     borderBottom: `2px solid ${t.palette.divider}`,
-                                    fontWeight: 800,
                                     color: '#0a0a0a',
                                 },
                                 '& .MuiDataGrid-columnHeader': {
+                                    backgroundColor: '#fcd34d !important',
+                                    color: '#0a0a0a',
+                                    '&:focus, &:focus-within': { outline: 'none' },
+                                },
+                                '& .MuiDataGrid-columnHeaderTitle': {
+                                    color: '#0a0a0a',
                                     fontWeight: 800,
                                 },
+                                '& .MuiDataGrid-columnHeaderTitleContainer, & .MuiDataGrid-columnHeaderTitleContainerContent': {
+                                    color: '#0a0a0a',
+                                },
+                                '& .MuiDataGrid-iconButtonContainer .MuiSvgIcon-root, & .MuiDataGrid-sortIcon, & .MuiDataGrid-menuIconButton .MuiSvgIcon-root, & .MuiDataGrid-filterIcon': {
+                                    color: '#0a0a0a',
+                                },
+                                '& .MuiDataGrid-columnSeparator': {
+                                    color: 'rgba(10,10,10,0.35)',
+                                },
+                                // Checkbox in header
+                                '& .MuiDataGrid-columnHeader .MuiCheckbox-root': {
+                                    color: '#0a0a0a',
+                                },
+                                // Body cells
                                 '& .MuiDataGrid-cell': {
                                     borderColor: t.palette.divider,
+                                    color: t.palette.text.primary,
+                                    '&:focus, &:focus-within': { outline: 'none' },
                                 },
                                 '& .MuiDataGrid-row': {
                                     cursor: 'pointer',
@@ -252,6 +276,10 @@ const TransactionDataGrid: React.FC = () => {
                                 },
                                 '& .MuiDataGrid-footerContainer': {
                                     borderTop: `2px solid ${t.palette.divider}`,
+                                    color: t.palette.text.primary,
+                                },
+                                '& .MuiTablePagination-root, & .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows, & .MuiTablePagination-select': {
+                                    color: t.palette.text.primary,
                                 },
                             })}
                         />

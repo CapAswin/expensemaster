@@ -157,23 +157,45 @@ const Manage: React.FC = () => {
                                                 >
                                                     {category.Name}
                                                 </Typography>
-                                                <Stack direction='row' spacing={0.5}>
+                                                <Stack direction='row' spacing={0.75}>
                                                     <Tooltip title='Edit'>
                                                         <IconButton
                                                             size='small'
                                                             onClick={() => handleEdit(category.id, category)}
-                                                            sx={{ bgcolor: '#fff' }}
+                                                            sx={{
+                                                                bgcolor: '#fff',
+                                                                color: '#0a0a0a',
+                                                                border: '2px solid #0a0a0a',
+                                                                boxShadow: '2px 2px 0 0 #0a0a0a',
+                                                                width: 32,
+                                                                height: 32,
+                                                                '&:hover': {
+                                                                    bgcolor: '#7dd3fc',
+                                                                    color: '#0a0a0a',
+                                                                },
+                                                            }}
                                                         >
-                                                            <EditRoundedIcon fontSize='small' />
+                                                            <EditRoundedIcon sx={{ fontSize: 16 }} />
                                                         </IconButton>
                                                     </Tooltip>
                                                     <Tooltip title='Delete'>
                                                         <IconButton
                                                             size='small'
                                                             onClick={() => handleOpenDialog(category.id)}
-                                                            sx={{ bgcolor: '#fff' }}
+                                                            sx={{
+                                                                bgcolor: '#fff',
+                                                                color: '#0a0a0a',
+                                                                border: '2px solid #0a0a0a',
+                                                                boxShadow: '2px 2px 0 0 #0a0a0a',
+                                                                width: 32,
+                                                                height: 32,
+                                                                '&:hover': {
+                                                                    bgcolor: '#ef4444',
+                                                                    color: '#fff',
+                                                                },
+                                                            }}
                                                         >
-                                                            <DeleteRoundedIcon fontSize='small' />
+                                                            <DeleteRoundedIcon sx={{ fontSize: 16 }} />
                                                         </IconButton>
                                                     </Tooltip>
                                                 </Stack>

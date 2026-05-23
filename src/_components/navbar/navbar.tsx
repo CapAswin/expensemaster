@@ -93,12 +93,16 @@ export default function LabTabs({ theme, isDarkMode = false }: LabTabsProps) {
         <Box sx={{ width: '100%' }}>
             <TabContext value={value}>
                 <Card
-                    sx={{
+                    elevation={0}
+                    sx={(t) => ({
                         mb: { xs: 3, sm: 4 },
                         px: { xs: 2, sm: 3, md: 3.5 },
                         py: { xs: 1.75, sm: 2 },
                         borderRadius: 3,
-                    }}
+                        border: `2px solid ${t.palette.divider}`,
+                        boxShadow: `5px 5px 0 0 ${t.palette.divider}`,
+                        backgroundColor: t.palette.background.paper,
+                    })}
                 >
                     <Stack
                         direction='row'
@@ -155,7 +159,7 @@ export default function LabTabs({ theme, isDarkMode = false }: LabTabsProps) {
                                 aria-label='primary navigation'
                                 sx={{
                                     minHeight: 40,
-                                    '& .MuiTabs-flexContainer': { gap: 0.5 },
+                                    '& .MuiTabs-flexContainer': { gap: 1.5 },
                                 }}
                             >
                                 {TAB_CONTENT.map((tab) => (
@@ -203,12 +207,15 @@ export default function LabTabs({ theme, isDarkMode = false }: LabTabsProps) {
                     </Stack>
 
                     {/* Mobile/Tablet tabs row */}
-                    <Box sx={{ display: { xs: 'block', md: 'none' }, mt: 1.25 }}>
+                    <Box sx={{ display: { xs: 'block', md: 'none' }, mt: 1.5 }}>
                         <TabList
                             onChange={handleChange}
                             variant='scrollable'
                             allowScrollButtonsMobile
-                            sx={{ minHeight: 40 }}
+                            sx={{
+                                minHeight: 40,
+                                '& .MuiTabs-flexContainer': { gap: 1 },
+                            }}
                         >
                             {TAB_CONTENT.map((tab) => (
                                 <Tab key={tab.value} value={tab.value} label={tab.label} />
