@@ -1,87 +1,64 @@
 import React, { useEffect, useState } from 'react';
-import { Paper, Box, ThemeProvider, CssBaseline, GlobalStyles } from '@mui/material';
+import { Box, CssBaseline, ThemeProvider } from '@mui/material';
+import { Route, Routes } from 'react-router-dom';
+import { useDispatch } from 'react-redux';
+
 import { darkTheme, lightTheme } from '../_styles/CreateTheme';
 import LabTabs from '../_components/navbar/navbar';
 import TransactionDataGrid from './transactionGrid';
-import { Route, Routes } from 'react-router-dom';
 import Manage from './manage';
 import Dashboard from './Dashboard';
 import { ChangePasswordModal } from '../_components';
 import CreateTransaction from './createTransactions';
-import { useDispatch } from 'react-redux';
-import { fetchCategories, fetchTransactions } from '../redux/dataSlice';
-import { AppDispatch } from '../redux/store';
 import CreateCategory from './createCategory';
 import AboutUs from './about';
+import { fetchCategories, fetchTransactions } from '../redux/dataSlice';
+import { AppDispatch } from '../redux/store';
 
 const DashboardHome: React.FC = () => {
-
     const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
     const dispatch: AppDispatch = useDispatch();
-    let fetch = async () => {
-        dispatch(fetchCategories())
-        dispatch(fetchTransactions())
 
-    }
     useEffect(() => {
+        dispatch(fetchCategories());
+        dispatch(fetchTransactions());
+    }, [dispatch]);
 
-        fetch()
-        return () => {
+    const toggleTheme = () => setIsDarkMode((prev) => !prev);
 
-        }
-    }, [])
-
-    const toggleTheme = () => {
-        setIsDarkMode((prevMode) => !prevMode);
-    };
     return (
         <ThemeProvider theme={isDarkMode ? darkTheme : lightTheme}>
             <CssBaseline />
-            <GlobalStyles
-                styles={{
-                    html: {
-                        backgroundColor: isDarkMode ? darkTheme.palette.background.default : lightTheme.palette.background.paper,
-                        height: '100%',
-                    },
-                    body: {
-                        // backgroundColor: isDarkMode ? darkTheme.palette.background.default : lightTheme.palette.background.paper,
-                        margin: 0,
-                        minHeight: '100vh',
-                    },
+            <Box
+                sx={{
+                    minHeight: '100vh',
+                    width: '100%',
+                    pb: { xs: 6, sm: 8, md: 10 },
                 }}
-            />
-            <Paper sx={{ boxShadow: "none", background: "transparent" }}>
-
+            >
                 <Box
                     sx={{
                         width: '100%',
-                        maxWidth: {
-                            xs: '100%',  // full width for extra small screens
-                            sm: '540px', // similar to Bootstrap's sm container
-                            md: '720px', // similar to Bootstrap's md container
-                            lg: '960px', // similar to Bootstrap's lg container
-                            xl: '1140px', // similar to Bootstrap's xl container
-                        },
-                        mx: 'auto', // centers the container horizontally
-                        px: {
-                            xs: 2,  // padding for extra small screens
-                            sm: 3,  // padding for small screens and up
-                        },
+                        maxWidth: { xs: '100%', sm: 720, md: 960, lg: 1200, xl: 1320 },
+                        mx: 'auto',
+                        px: { xs: 2, sm: 3, md: 4 },
+                        pt: { xs: 3, sm: 4, md: 5 },
                     }}
                 >
-                    <LabTabs theme={toggleTheme} />
-                    <Routes>
-                        <Route path='/' element={<Dashboard />} />
-                        <Route path='/manage' element={<Manage />} />
-                        <Route path='/transactions' element={<TransactionDataGrid />} />
-                        <Route path='/aboutus' element={<AboutUs />} />
-
-                    </Routes>
+                    <LabTabs theme={toggleTheme} isDarkMode={isDarkMode} />
+                    <Box sx={{ mt: { xs: 3, sm: 4 } }}>
+                        <Routes>
+                            <Route path='/' element={<Dashboard />} />
+                            <Route path='/manage' element={<Manage />} />
+                            <Route path='/transactions' element={<TransactionDataGrid />} />
+                            <Route path='/aboutus' element={<AboutUs />} />
+                        </Routes>
+                    </Box>
                 </Box>
-                <ChangePasswordModal />
-                <CreateTransaction />
-                <CreateCategory />
-            </Paper>
+            </Box>
+            <ChangePasswordModal />
+            <CreateTransaction />
+            <CreateCategory />
         </ThemeProvider>
     );
 };

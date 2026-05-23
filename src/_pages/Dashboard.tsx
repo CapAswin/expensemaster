@@ -14,6 +14,7 @@ import {
     Stack,
     Skeleton,
     Alert,
+    useTheme,
 } from '@mui/material';
 import { SelectChangeEvent } from '@mui/material/Select';
 import { Line, Bar } from 'react-chartjs-2';
@@ -128,6 +129,51 @@ const StatCard: React.FC<StatCardProps> = ({ label, value, color, icon }) => (
 
 const DashBoard: React.FC = () => {
     const dispatch = useDispatch();
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
+    const ink = theme.palette.text.primary;
+    const gridColor = isDark ? 'rgba(254,246,228,0.12)' : 'rgba(10,10,10,0.1)';
+
+    const chartJsOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: 'top' as const,
+                labels: {
+                    color: ink,
+                    font: { weight: 700 as any, size: 12 },
+                    boxWidth: 14,
+                    boxHeight: 14,
+                    padding: 14,
+                    usePointStyle: false,
+                },
+            },
+            tooltip: {
+                backgroundColor: ink,
+                titleColor: isDark ? '#0a0a0a' : '#fff',
+                bodyColor: isDark ? '#0a0a0a' : '#fff',
+                borderColor: ink,
+                borderWidth: 2,
+                padding: 10,
+                cornerRadius: 6,
+                titleFont: { weight: 'bold' as const },
+            },
+        },
+        scales: {
+            x: {
+                grid: { color: gridColor, drawTicks: false },
+                ticks: { color: ink, font: { weight: 600 as any } },
+                border: { color: ink, width: 2 },
+            },
+            y: {
+                grid: { color: gridColor, drawTicks: false },
+                ticks: { color: ink, font: { weight: 600 as any } },
+                border: { color: ink, width: 2 },
+                beginAtZero: true,
+            },
+        },
+    };
 
     const { data: transactions, error: transactionsError, isLoading: isLoadingTransactions } = useQuery<Transaction[]>({
         queryKey: ['transactions'],
@@ -150,24 +196,38 @@ const DashBoard: React.FC = () => {
 
     const [data, setData] = useState({ income: 0, expense: 0, balance: 0 });
 
+    const incomeDataset = (data: number[]) => ({
+        label: 'Income',
+        data,
+        borderColor: '#0a0a0a',
+        backgroundColor: '#bef264',
+        pointBackgroundColor: '#bef264',
+        pointBorderColor: '#0a0a0a',
+        pointBorderWidth: 2,
+        pointRadius: 4,
+        pointHoverRadius: 6,
+        borderWidth: 3,
+        tension: 0.25,
+        fill: false,
+    });
+    const expenseDataset = (data: number[]) => ({
+        label: 'Expense',
+        data,
+        borderColor: '#0a0a0a',
+        backgroundColor: '#fca5a5',
+        pointBackgroundColor: '#fca5a5',
+        pointBorderColor: '#0a0a0a',
+        pointBorderWidth: 2,
+        pointRadius: 4,
+        pointHoverRadius: 6,
+        borderWidth: 3,
+        tension: 0.25,
+        fill: false,
+    });
+
     const [chartData, setChartData] = useState({
         labels: [] as string[],
-        datasets: [
-            {
-                label: 'Income',
-                data: [] as number[],
-                borderColor: '#22c55e',
-                backgroundColor: '#bef264',
-                fill: false,
-            },
-            {
-                label: 'Expense',
-                data: [] as number[],
-                borderColor: '#ef4444',
-                backgroundColor: '#fca5a5',
-                fill: false,
-            },
-        ],
+        datasets: [incomeDataset([]), expenseDataset([])],
     });
 
     const [dateRange, setDateRange] = useState<DateRange<Dayjs>>([dayjs().startOf('month'), dayjs().endOf('month')]);
@@ -219,20 +279,8 @@ const DashBoard: React.FC = () => {
         setChartData({
             labels,
             datasets: [
-                {
-                    label: 'Income',
-                    data: labels.map((l) => incomeData[l] || 0),
-                    borderColor: '#22c55e',
-                    backgroundColor: '#bef264',
-                    fill: false,
-                },
-                {
-                    label: 'Expense',
-                    data: labels.map((l) => expenseData[l] || 0),
-                    borderColor: '#ef4444',
-                    backgroundColor: '#fca5a5',
-                    fill: false,
-                },
+                incomeDataset(labels.map((l) => incomeData[l] || 0)),
+                expenseDataset(labels.map((l) => expenseData[l] || 0)),
             ],
         });
     }, [transactions, dateRange, selectedCategory]);
@@ -381,13 +429,13 @@ const DashBoard: React.FC = () => {
                             </FormControl>
                         </Stack>
                     </Stack>
-                    <Box sx={{ minHeight: 260 }}>
+                    <Box sx={{ height: 320 }}>
                         {isLoading ? (
-                            <Skeleton variant='rounded' height={260} />
+                            <Skeleton variant='rounded' height={320} />
                         ) : chartType === 'line' ? (
-                            <Line data={chartData} />
+                            <Line data={chartData} options={chartJsOptions} />
                         ) : (
-                            <Bar data={chartData} />
+                            <Bar data={chartData} options={chartJsOptions} />
                         )}
                     </Box>
                 </CardContent>

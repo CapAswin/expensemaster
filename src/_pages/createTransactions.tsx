@@ -167,7 +167,17 @@ const CreateTransaction: React.FC = () => {
                         <Typography variant='h6' sx={{ fontWeight: 800, color: '#0a0a0a' }}>
                             {isUpdate ? 'Update Transaction' : 'New Transaction'}
                         </Typography>
-                        <IconButton onClick={handleClose} size='small' sx={{ bgcolor: '#fff' }}>
+                        <IconButton
+                            onClick={handleClose}
+                            size='small'
+                            sx={{
+                                bgcolor: '#fff',
+                                color: '#0a0a0a',
+                                border: '2px solid #0a0a0a',
+                                boxShadow: '2px 2px 0 0 #0a0a0a',
+                                '&:hover': { bgcolor: '#ef4444', color: '#fff' },
+                            }}
+                        >
                             <CloseRounded fontSize='small' />
                         </IconButton>
                     </Stack>

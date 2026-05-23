@@ -19,9 +19,7 @@ import TabPanel from '@mui/lab/TabPanel';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
     AddRounded,
-    DarkModeRounded,
     InfoOutlined,
-    LightModeRounded,
     LogoutRounded,
     PasswordRounded,
 } from '@mui/icons-material';
@@ -31,6 +29,7 @@ import axiosInstance from '../../_utils/axios';
 import { persistor, RootState } from '../../redux/store';
 import { showSuccessSnackbar } from '../snackbar/Snackbar';
 import { openChangePassword, openCreateTransactinModal } from '../../redux/modalSlice';
+import ThemeSwitch from './ThemeSwitch';
 
 interface LabTabsProps {
     theme: () => void;
@@ -95,75 +94,98 @@ export default function LabTabs({ theme, isDarkMode = false }: LabTabsProps) {
             <TabContext value={value}>
                 <Card
                     sx={{
-                        mb: 2,
-                        px: { xs: 2, sm: 3 },
-                        py: 1.5,
+                        mb: { xs: 3, sm: 4 },
+                        px: { xs: 2, sm: 3, md: 3.5 },
+                        py: { xs: 1.75, sm: 2 },
                         borderRadius: 3,
                     }}
                 >
                     <Stack
-                        direction={{ xs: 'column', md: 'row' }}
-                        alignItems={{ xs: 'stretch', md: 'center' }}
+                        direction='row'
+                        alignItems='center'
                         justifyContent='space-between'
-                        gap={1.5}
+                        gap={2}
                     >
-                        <Stack direction='row' alignItems='center' gap={2.5}>
-                            <Stack direction='row' alignItems='center' gap={1.25}>
-                                <Box
-                                    sx={(t) => ({
-                                        width: 40,
-                                        height: 40,
-                                        borderRadius: 1.5,
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        backgroundColor: '#fcd34d',
-                                        color: '#0a0a0a',
-                                        fontWeight: 900,
-                                        fontSize: 22,
-                                        lineHeight: 1,
-                                        letterSpacing: '-0.04em',
-                                        border: `2px solid ${t.palette.divider}`,
-                                        boxShadow: `3px 3px 0 0 ${t.palette.divider}`,
-                                    })}
-                                >
-                                    X
-                                </Box>
-                                <Typography
-                                    variant='h6'
-                                    sx={{
-                                        fontWeight: 800,
-                                        letterSpacing: '-0.02em',
-                                        color: 'text.primary',
-                                    }}
-                                >
-                                    pense Master
-                                </Typography>
-                            </Stack>
+                        {/* Brand */}
+                        <Stack direction='row' alignItems='center' gap={1.25} sx={{ flexShrink: 0 }}>
+                            <Box
+                                sx={(t) => ({
+                                    width: 42,
+                                    height: 42,
+                                    borderRadius: 1.5,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    backgroundColor: '#fcd34d',
+                                    color: '#0a0a0a',
+                                    fontWeight: 900,
+                                    fontSize: 22,
+                                    lineHeight: 1,
+                                    letterSpacing: '-0.04em',
+                                    border: `2px solid ${t.palette.divider}`,
+                                    boxShadow: `3px 3px 0 0 ${t.palette.divider}`,
+                                })}
+                            >
+                                X
+                            </Box>
+                            <Typography
+                                variant='h6'
+                                sx={{
+                                    fontWeight: 800,
+                                    letterSpacing: '-0.02em',
+                                    color: 'text.primary',
+                                    display: { xs: 'none', sm: 'block' },
+                                    lineHeight: 1,
+                                }}
+                            >
+                                pense&nbsp;Master
+                            </Typography>
+                        </Stack>
+
+                        {/* Tabs (centered on md+) */}
+                        <Box
+                            sx={{
+                                flex: 1,
+                                display: { xs: 'none', md: 'flex' },
+                                justifyContent: 'center',
+                            }}
+                        >
                             <TabList
                                 onChange={handleChange}
                                 aria-label='primary navigation'
                                 sx={{
                                     minHeight: 40,
                                     '& .MuiTabs-flexContainer': { gap: 0.5 },
-                                    display: { xs: 'none', sm: 'flex' },
                                 }}
                             >
                                 {TAB_CONTENT.map((tab) => (
                                     <Tab key={tab.value} value={tab.value} label={tab.label} />
                                 ))}
                             </TabList>
-                        </Stack>
-                        <Stack direction='row' alignItems='center' gap={1.25}>
+                        </Box>
+
+                        {/* Actions */}
+                        <Stack direction='row' alignItems='center' gap={1.25} sx={{ flexShrink: 0 }}>
                             <Tooltip title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}>
-                                <IconButton onClick={theme} size='medium'>
-                                    {isDarkMode ? <LightModeRounded /> : <DarkModeRounded />}
-                                </IconButton>
+                                <Box sx={{ display: 'flex' }}>
+                                    <ThemeSwitch checked={isDarkMode} onChange={theme} />
+                                </Box>
                             </Tooltip>
                             <Tooltip title='Account'>
                                 <IconButton
                                     onClick={handleMenuOpen}
-                                    sx={{ p: 0, border: 'none', boxShadow: 'none', '&:hover': { transform: 'none', boxShadow: 'none' } }}
+                                    sx={{
+                                        p: 0,
+                                        border: 'none',
+                                        boxShadow: 'none',
+                                        backgroundColor: 'transparent',
+                                        '&:hover': {
+                                            transform: 'none',
+                                            boxShadow: 'none',
+                                            backgroundColor: 'transparent',
+                                        },
+                                        '&:active': { transform: 'none', boxShadow: 'none' },
+                                    }}
                                 >
                                     <Avatar
                                         sx={(t) => ({
@@ -180,7 +202,8 @@ export default function LabTabs({ theme, isDarkMode = false }: LabTabsProps) {
                         </Stack>
                     </Stack>
 
-                    <Box sx={{ display: { xs: 'block', sm: 'none' }, mt: 1.5 }}>
+                    {/* Mobile/Tablet tabs row */}
+                    <Box sx={{ display: { xs: 'block', md: 'none' }, mt: 1.25 }}>
                         <TabList
                             onChange={handleChange}
                             variant='scrollable'
@@ -218,7 +241,7 @@ export default function LabTabs({ theme, isDarkMode = false }: LabTabsProps) {
                         <MenuItem
                             onClick={handleLogout}
                             sx={{
-                                color: '#0a0a0a',
+                                color: 'text.primary',
                                 '&:hover': { backgroundColor: '#ef4444', color: '#fff' },
                             }}
                         >
@@ -228,24 +251,33 @@ export default function LabTabs({ theme, isDarkMode = false }: LabTabsProps) {
                 </Card>
 
                 {TAB_CONTENT.map((tab) => (
-                    <TabPanel key={tab.value} value={tab.value} sx={{ p: 0, mb: 2 }}>
+                    <TabPanel
+                        key={tab.value}
+                        value={tab.value}
+                        sx={{ p: 0, mb: { xs: 2.5, sm: 3.5 } }}
+                    >
                         <Box
                             sx={{
                                 display: 'flex',
                                 justifyContent: 'space-between',
                                 alignItems: { xs: 'flex-start', sm: 'center' },
                                 flexDirection: { xs: 'column', sm: 'row' },
-                                gap: 1.5,
-                                px: 0.5,
+                                gap: 2,
+                                px: { xs: 0.5, sm: 1 },
+                                py: { xs: 0.5, sm: 1 },
                             }}
                         >
-                            <Box>
-                                <Typography variant='h4' sx={{ fontWeight: 800 }}>
+                            <Box sx={{ minWidth: 0 }}>
+                                <Typography variant='h4' sx={{ fontWeight: 800, lineHeight: 1.15 }}>
                                     {tab.label === 'Dashboard' && user
                                         ? `Welcome back, ${user}`
                                         : tab.label}
                                 </Typography>
-                                <Typography variant='body2' color='text.secondary' sx={{ mt: 0.5, fontWeight: 600 }}>
+                                <Typography
+                                    variant='body2'
+                                    color='text.secondary'
+                                    sx={{ mt: 0.75, fontWeight: 600 }}
+                                >
                                     {TAB_SUBTITLES[tab.value]}
                                 </Typography>
                             </Box>
@@ -255,6 +287,7 @@ export default function LabTabs({ theme, isDarkMode = false }: LabTabsProps) {
                                     color='primary'
                                     startIcon={<AddRounded />}
                                     onClick={handleCreateTransaction}
+                                    sx={{ flexShrink: 0 }}
                                 >
                                     New transaction
                                 </Button>

@@ -238,13 +238,19 @@ const buildComponents = (mode: 'light' | 'dark') => {
                     border: '2px solid transparent',
                     transition: 'all 120ms ease',
                     '&:hover': {
-                        backgroundColor: isDark ? 'rgba(254,246,228,0.06)' : 'rgba(10,10,10,0.04)',
-                    },
-                    '&.Mui-selected': {
+                        backgroundColor: isDark ? 'rgba(254,246,228,0.08)' : 'rgba(10,10,10,0.05)',
                         color: ink,
+                    },
+                    // Selected tab has a constant yellow bg, so force the text dark in both themes
+                    '&.Mui-selected': {
+                        color: '#0a0a0a',
                         backgroundColor: PALETTE.yellow,
-                        border,
-                        boxShadow: `3px 3px 0 0 ${ink}`,
+                        border: `2px solid ${PALETTE.ink}`,
+                        boxShadow: `3px 3px 0 0 ${PALETTE.ink}`,
+                    },
+                    '&.Mui-selected:hover': {
+                        backgroundColor: PALETTE.yellow,
+                        color: '#0a0a0a',
                     },
                 },
             },
@@ -344,22 +350,6 @@ const buildComponents = (mode: 'light' | 'dark') => {
                     backgroundColor: paper,
                 },
                 bar: { backgroundColor: PALETTE.yellow },
-            },
-        },
-        MuiSwitch: {
-            styleOverrides: {
-                root: { padding: 8 },
-                track: {
-                    borderRadius: 14,
-                    backgroundColor: paper,
-                    border,
-                    opacity: 1,
-                },
-                thumb: {
-                    backgroundColor: PALETTE.yellow,
-                    border,
-                    boxShadow: `2px 2px 0 0 ${ink}`,
-                },
             },
         },
         MuiDivider: {
