@@ -40,12 +40,14 @@ const TAB_CONTENT = [
     { label: 'Dashboard', value: '/' },
     { label: 'Transactions', value: '/transactions' },
     { label: 'Manage', value: '/manage' },
+    { label: 'Rooms', value: '/rooms' },
 ];
 
 const TAB_SUBTITLES: Record<string, string> = {
     '/': 'Your financial overview at a glance',
     '/transactions': 'Browse, filter and manage every entry',
     '/manage': 'Organize your spending categories',
+    '/rooms': 'Split expenses with friends in shared rooms',
 };
 
 export default function LabTabs({ theme, isDarkMode = false }: LabTabsProps) {
@@ -54,11 +56,19 @@ export default function LabTabs({ theme, isDarkMode = false }: LabTabsProps) {
     const dispatch = useDispatch();
     const user = useSelector((state: RootState) => state.auth.username);
 
-    const [value, setValue] = React.useState(location.pathname);
+    // Map sub-routes (e.g. /rooms/FNX-7K3) to their parent tab so the right tab stays highlighted.
+    const matchTab = (path: string): string => {
+        const exact = TAB_CONTENT.find((t) => t.value === path);
+        if (exact) return exact.value;
+        const parent = TAB_CONTENT.find((t) => t.value !== '/' && path.startsWith(t.value + '/'));
+        return parent ? parent.value : '/';
+    };
+
+    const [value, setValue] = React.useState(matchTab(location.pathname));
     const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
 
     React.useEffect(() => {
-        setValue(location.pathname);
+        setValue(matchTab(location.pathname));
     }, [location.pathname]);
 
     const handleChange = (_: React.SyntheticEvent, newValue: string) => {

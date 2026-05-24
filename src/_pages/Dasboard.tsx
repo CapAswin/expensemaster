@@ -12,6 +12,8 @@ import { ChangePasswordModal } from '../_components';
 import CreateTransaction from './createTransactions';
 import CreateCategory from './createCategory';
 import AboutUs from './about';
+import RoomsPage from './rooms';
+import RoomDetailPage from './roomDetail';
 import { fetchCategories, fetchTransactions } from '../redux/dataSlice';
 import { AppDispatch } from '../redux/store';
 
@@ -51,6 +53,8 @@ const DashboardHome: React.FC = () => {
                             <Route path='/' element={<Dashboard />} />
                             <Route path='/manage' element={<Manage />} />
                             <Route path='/transactions' element={<TransactionDataGrid />} />
+                            <Route path='/rooms' element={<RoomsPage />} />
+                            <Route path='/rooms/:id' element={<RoomDetailPage />} />
                             <Route path='/aboutus' element={<AboutUs />} />
                         </Routes>
                     </Box>
