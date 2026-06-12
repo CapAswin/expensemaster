@@ -18,7 +18,7 @@ import {
     VisibilityRounded,
 } from '@mui/icons-material';
 import { useDispatch } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 import axiosInstance from '../_utils/axios';
 import { loginWithRegister } from '../redux/authSlice';
@@ -70,6 +70,7 @@ const Register: React.FC<RegisterProps> = ({ onSwitchToLogin }) => {
 
     const dispatch = useDispatch();
     const navigate = useNavigate();
+    const location = useLocation();
 
     const mutation = useMutation<RegisterResponse, unknown, RegisterData>({
         mutationFn: registerUser,
@@ -84,7 +85,7 @@ const Register: React.FC<RegisterProps> = ({ onSwitchToLogin }) => {
             );
             localStorage.setItem('token', data.token);
             showSuccessSnackbar('Account created!');
-            navigate('/');
+            navigate(location.pathname + location.search || '/');
         },
         onError: (error: any) => {
             const errorResponse = error.response as { data: { [key: string]: string[] } };

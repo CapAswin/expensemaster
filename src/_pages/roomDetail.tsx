@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
     Alert,
     Avatar,
@@ -20,6 +20,7 @@ import {
     TableRow,
     Tooltip,
     Typography,
+    CircularProgress,
 } from '@mui/material';
 import {
     AddRounded,
@@ -30,21 +31,25 @@ import {
     GroupRounded,
     LinkRounded,
     TaskAltRounded,
+    AccountBalanceWalletRounded,
 } from '@mui/icons-material';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 
 import { RootState } from '../redux/store';
 import {
-    buildInviteLink,
-    computeBalances,
-    getRoom,
-    removeExpense,
-    settleUp,
-} from '../_utils/roomsStore';
+    apiGetRoom,
+    apiListExpenses,
+    apiDeleteExpense,
+    apiLeaveRoom,
+    APIRoom,
+    APIRoomExpense,
+} from '../_utils/roomsAPI';
+import { settleUp, SettleTransfer, computeBalancesFromExpenses } from '../_utils/roomsMath';
+import { getApiErrorMessage } from '../_utils/roomsAPI';
 import { bumpRoomData, forgetJoinedRoom } from '../redux/roomSlice';
 import { AddRoomExpenseModal } from '../_components/modals/roomModals';
-import { showSuccessSnackbar } from '../_components/snackbar/Snackbar';
+import { showErrorSnackbar, showSuccessSnackbar } from '../_components/snackbar/Snackbar';
 
 const MoneyFormat = (n: number) =>
     `₹ ${new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)}`;
@@ -58,16 +63,44 @@ const RoomDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const dispatch = useDispatch();
+    const username = useSelector((s: RootState) => s.auth.username);
 
-    // re-read on bump so we get latest after expense changes
-    const bump = useSelector((s: RootState) => s.room.bump);
-    const joined = useSelector((s: RootState) =>
-        s.room.joinedRooms.find((j) => j.roomId === id),
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `bump` is the re-read trigger after mutations
-    const room = useMemo(() => (id ? getRoom(id) : undefined), [id, bump]);
-
+    const [room, setRoom] = useState<APIRoom | null>(null);
+    const [expenses, setExpenses] = useState<APIRoomExpense[]>([]);
+    const [loading, setLoading] = useState(true);
     const [addOpen, setAddOpen] = useState(false);
+
+    const fetchData = useCallback(async () => {
+        if (!id) return;
+        setLoading(true);
+        try {
+            const [roomData, expensesData] = await Promise.all([
+                apiGetRoom(id),
+                apiListExpenses(id),
+            ]);
+            setRoom(roomData);
+            setExpenses(expensesData);
+        } catch (err) {
+            setRoom(null);
+            showErrorSnackbar(getApiErrorMessage(err, 'Failed to load room'));
+        } finally {
+            setLoading(false);
+        }
+    }, [id]);
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
+
+    if (loading) {
+        return (
+            <Card>
+                <CardContent sx={{ p: 4, textAlign: 'center' }}>
+                    <CircularProgress />
+                </CardContent>
+            </Card>
+        );
+    }
 
     if (!id || !room) {
         return (
@@ -77,7 +110,7 @@ const RoomDetailPage: React.FC = () => {
                         Room not found
                     </Typography>
                     <Typography variant='body2' color='text.secondary' sx={{ mb: 2 }}>
-                        It may have been deleted on this device.
+                        It may have been deleted or you may not be a member.
                     </Typography>
                     <Button
                         variant='contained'
@@ -92,30 +125,51 @@ const RoomDetailPage: React.FC = () => {
         );
     }
 
-    const currentMember = joined?.memberName ?? room.members[0]?.name ?? '';
-    const balances = computeBalances(room);
-    const transfers = settleUp(balances);
-    const totalSpent = room.expenses.reduce((s, e) => s + e.amount, 0);
+    const currentUsername = username ?? room.members[0]?.username ?? '';
+
+    const computedBalances = computeBalancesFromExpenses(expenses, room.members);
+    const balanceMap: Record<string, number> = {};
+    computedBalances.forEach((b) => {
+        balanceMap[b.username] = b.net;
+    });
+    const transfers: SettleTransfer[] = settleUp(balanceMap);
+    const totalSpent =
+        Math.round(expenses.reduce((s, e) => s + e.amount, 0) * 100) / 100;
 
     const handleCopy = () => {
-        navigator.clipboard.writeText(room.id);
-        showSuccessSnackbar(`Room ID copied: ${room.id}`);
+        navigator.clipboard.writeText(room.room_code);
+        showSuccessSnackbar(`Room code copied: ${room.room_code}`);
     };
 
     const handleCopyInvite = () => {
-        navigator.clipboard.writeText(buildInviteLink(room));
+        const link = `${window.location.origin}/rooms?invite=${room.room_code}`;
+        navigator.clipboard.writeText(link);
         showSuccessSnackbar('Invite link copied — share it to add others');
     };
 
-    const handleRemoveExpense = (expenseId: string) => {
-        removeExpense(room.id, expenseId);
-        dispatch(bumpRoomData());
-        showSuccessSnackbar('Expense removed');
+    const handleRemoveExpense = async (expenseId: number) => {
+        try {
+            await apiDeleteExpense(room.room_code, expenseId);
+            showSuccessSnackbar('Expense removed');
+            fetchData();
+        } catch (err) {
+            showErrorSnackbar(getApiErrorMessage(err, 'Failed to remove expense'));
+        }
     };
 
-    const handleLeave = () => {
-        dispatch(forgetJoinedRoom(room.id));
-        navigate('/rooms');
+    const handleLeave = async () => {
+        try {
+            await apiLeaveRoom(room.room_code);
+            dispatch(forgetJoinedRoom(room.room_code));
+            navigate('/rooms');
+        } catch (err) {
+            showErrorSnackbar(getApiErrorMessage(err, 'Failed to leave room'));
+        }
+    };
+
+    const handleExpenseAdded = () => {
+        dispatch(bumpRoomData());
+        fetchData();
     };
 
     return (
@@ -133,18 +187,26 @@ const RoomDetailPage: React.FC = () => {
                             </Typography>
                             <Stack direction='row' alignItems='center' spacing={0.5} sx={{ mt: 0.75 }}>
                                 <Chip
-                                    label={room.id}
+                                    label={room.room_code}
                                     size='small'
                                     sx={{ fontFamily: 'monospace', letterSpacing: '0.06em' }}
                                 />
-                                <Tooltip title='Copy ID — share with others to invite'>
+                                <Tooltip title='Copy code — share with others to invite'>
                                     <IconButton size='small' onClick={handleCopy} sx={{ width: 28, height: 28 }}>
                                         <ContentCopyRounded sx={{ fontSize: 14 }} />
                                     </IconButton>
                                 </Tooltip>
                             </Stack>
                         </Box>
-                        <Stack direction='row' spacing={1} sx={{ flexShrink: 0 }}>
+                        <Stack direction='row' spacing={1} sx={{ flexShrink: 0, flexWrap: 'wrap' }}>
+                            <Button
+                                variant='contained'
+                                color='secondary'
+                                startIcon={<AccountBalanceWalletRounded />}
+                                onClick={() => navigate(`/rooms/${room.room_code}/settlement`)}
+                            >
+                                My balance
+                            </Button>
                             <Button
                                 variant='outlined'
                                 startIcon={<LinkRounded />}
@@ -182,11 +244,11 @@ const RoomDetailPage: React.FC = () => {
                                 <Stack direction='row' alignItems='center' spacing={1}>
                                     <AvatarGroup max={6} sx={{ '& .MuiAvatar-root': { width: 30, height: 30, fontSize: 12 } }}>
                                         {room.members.map((m) => (
-                                            <Avatar key={m.name}>{m.name.charAt(0).toUpperCase()}</Avatar>
+                                            <Avatar key={m.id}>{m.username.charAt(0).toUpperCase()}</Avatar>
                                         ))}
                                     </AvatarGroup>
                                     <Typography variant='body2' sx={{ fontWeight: 600 }}>
-                                        {room.members.length}
+                                        {room.member_count}
                                     </Typography>
                                 </Stack>
                             </Box>
@@ -204,7 +266,7 @@ const RoomDetailPage: React.FC = () => {
                                 You are
                             </Typography>
                             <Typography variant='h6' sx={{ fontWeight: 800 }}>
-                                {currentMember}
+                                {currentUsername}
                             </Typography>
                         </Box>
                     </Stack>
@@ -221,12 +283,12 @@ const RoomDetailPage: React.FC = () => {
                             </Typography>
                             <Stack spacing={1}>
                                 {room.members.map((m) => {
-                                    const bal = balances[m.name] ?? 0;
+                                    const bal = balanceMap[m.username] ?? 0;
                                     const positive = bal >= 0.01;
                                     const negative = bal <= -0.01;
                                     return (
                                         <Stack
-                                            key={m.name}
+                                            key={m.id}
                                             direction='row'
                                             alignItems='center'
                                             justifyContent='space-between'
@@ -243,11 +305,11 @@ const RoomDetailPage: React.FC = () => {
                                         >
                                             <Stack direction='row' alignItems='center' spacing={1.25}>
                                                 <Avatar sx={{ width: 30, height: 30, fontSize: 12 }}>
-                                                    {m.name.charAt(0).toUpperCase()}
+                                                    {m.username.charAt(0).toUpperCase()}
                                                 </Avatar>
                                                 <Typography sx={{ fontWeight: 700 }}>
-                                                    {m.name}
-                                                    {m.name === currentMember && (
+                                                    {m.username}
+                                                    {m.username === currentUsername && (
                                                         <Typography component='span' variant='caption' color='text.secondary' sx={{ ml: 0.5, fontWeight: 600 }}>
                                                             (you)
                                                         </Typography>
@@ -325,13 +387,13 @@ const RoomDetailPage: React.FC = () => {
                                     Expenses
                                 </Typography>
                                 <Chip
-                                    label={`${room.expenses.length} total`}
+                                    label={`${expenses.length} total`}
                                     size='small'
                                     sx={{ fontWeight: 700 }}
                                 />
                             </Stack>
 
-                            {room.expenses.length === 0 ? (
+                            {expenses.length === 0 ? (
                                 <Box
                                     sx={(t) => ({
                                         textAlign: 'center',
@@ -376,30 +438,37 @@ const RoomDetailPage: React.FC = () => {
                                             </TableRow>
                                         </TableHead>
                                         <TableBody>
-                                            {room.expenses.map((e) => (
+                                            {expenses.map((e) => (
                                                 <TableRow key={e.id} hover>
                                                     <TableCell>
                                                         <Typography sx={{ fontWeight: 700, fontSize: 14 }}>
                                                             {e.description}
                                                         </Typography>
                                                         <Typography variant='caption' color='text.secondary'>
-                                                            {formatDate(e.date)}
+                                                            {formatDate(e.created_at)}
                                                         </Typography>
                                                     </TableCell>
                                                     <TableCell>
                                                         <Stack direction='row' alignItems='center' spacing={0.75}>
                                                             <Avatar sx={{ width: 24, height: 24, fontSize: 11 }}>
-                                                                {e.paidBy.charAt(0).toUpperCase()}
+                                                                {e.paid_by_username.charAt(0).toUpperCase()}
                                                             </Avatar>
                                                             <Typography sx={{ fontWeight: 600, fontSize: 13 }}>
-                                                                {e.paidBy}
+                                                                {e.paid_by_username}
                                                             </Typography>
                                                         </Stack>
                                                     </TableCell>
                                                     <TableCell>
                                                         <Typography variant='caption' sx={{ fontWeight: 600 }}>
-                                                            {e.splitMode === 'equal' ? 'Equal' : 'Exact'} · {e.splitAmong.length}
+                                                            {e.shares.length} share{e.shares.length === 1 ? '' : 's'}
                                                         </Typography>
+                                                        <Stack spacing={0.25} sx={{ mt: 0.25 }}>
+                                                            {e.shares.map((s) => (
+                                                                <Typography key={s.user_id} variant='caption' color='text.secondary'>
+                                                                    {s.username}: {MoneyFormat(s.share_amount)}
+                                                                </Typography>
+                                                            ))}
+                                                        </Stack>
                                                     </TableCell>
                                                     <TableCell align='right'>
                                                         <Typography sx={{ fontWeight: 800 }}>
@@ -432,8 +501,8 @@ const RoomDetailPage: React.FC = () => {
                 open={addOpen}
                 onClose={() => setAddOpen(false)}
                 room={room}
-                currentMember={currentMember}
-                onAdded={() => dispatch(bumpRoomData())}
+                currentUsername={currentUsername}
+                onAdded={handleExpenseAdded}
             />
         </Stack>
     );

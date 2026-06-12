@@ -14,6 +14,7 @@ import CreateCategory from './createCategory';
 import AboutUs from './about';
 import RoomsPage from './rooms';
 import RoomDetailPage from './roomDetail';
+import RoomSettlementPage from './roomSettlement';
 import { fetchCategories, fetchTransactions } from '../redux/dataSlice';
 import { AppDispatch } from '../redux/store';
 
@@ -55,6 +56,7 @@ const DashboardHome: React.FC = () => {
                             <Route path='/transactions' element={<TransactionDataGrid />} />
                             <Route path='/rooms' element={<RoomsPage />} />
                             <Route path='/rooms/:id' element={<RoomDetailPage />} />
+                            <Route path='/rooms/:id/settlement' element={<RoomSettlementPage />} />
                             <Route path='/aboutus' element={<AboutUs />} />
                         </Routes>
                     </Box>

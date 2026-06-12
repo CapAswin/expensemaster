@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
     Alert,
     Box,
@@ -11,6 +11,7 @@ import {
     Stack,
     Tooltip,
     Typography,
+    CircularProgress,
 } from '@mui/material';
 import {
     AddRounded,
@@ -27,9 +28,14 @@ import { RootState } from '../redux/store';
 import {
     rememberJoinedRoom,
     forgetJoinedRoom,
-    setMemberName,
 } from '../redux/roomSlice';
-import { buildInviteLink, getRoom, importRoomFromInvite, Room } from '../_utils/roomsStore';
+import {
+    apiListRooms,
+    apiGetRoomInfo,
+    apiCheckMembership,
+    APIRoom,
+    getApiErrorMessage,
+} from '../_utils/roomsAPI';
 import {
     CreateRoomModal,
     JoinRoomModal,
@@ -41,52 +47,93 @@ const HEADER_COLORS = ['#fcd34d', '#ff6b9d', '#bef264', '#7dd3fc', '#fb923c', '#
 const RoomsPage: React.FC = () => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
-    const memberName = useSelector((s: RootState) => s.room.memberName);
     const joinedRooms = useSelector((s: RootState) => s.room.joinedRooms);
+    const username = useSelector((s: RootState) => s.auth.username);
 
+    const [rooms, setRooms] = useState<APIRoom[]>([]);
+    const [loading, setLoading] = useState(true);
     const [createOpen, setCreateOpen] = useState(false);
     const [joinOpen, setJoinOpen] = useState(false);
-    const [inviteBanner, setInviteBanner] = useState<{ room: Room } | null>(null);
+    const [inviteRoomCode, setInviteRoomCode] = useState<string | undefined>();
+    const [inviteBanner, setInviteBanner] = useState<{
+        name: string;
+        room_code: string;
+        is_member: boolean;
+    } | null>(null);
     const [searchParams, setSearchParams] = useSearchParams();
 
-    // Auto-import a room from a ?invite=… link, then strip the param from the URL.
+    // Fetch rooms
+    const fetchRooms = useCallback(async () => {
+        try {
+            const data = await apiListRooms();
+            setRooms(data);
+        } catch (err) {
+            showErrorSnackbar(getApiErrorMessage(err, 'Failed to load rooms'));
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchRooms();
+    }, [fetchRooms]);
+
+    // Handle invite link
     useEffect(() => {
         const invite = searchParams.get('invite');
         if (!invite) return;
-        const room = importRoomFromInvite(invite);
-        if (room) {
-            setInviteBanner({ room });
-            showSuccessSnackbar(`Room "${room.name}" available to join`);
-        } else {
-            showErrorSnackbar('Invalid invite link');
-        }
+        const code = invite.trim().toUpperCase();
+
+        (async () => {
+            try {
+                const info = await apiGetRoomInfo(code);
+                try {
+                    const membership = await apiCheckMembership(code);
+                    setInviteBanner({
+                        name: info.name,
+                        room_code: code,
+                        is_member: membership.is_member,
+                    });
+                    if (membership.is_member) {
+                        showSuccessSnackbar(`You are already a member of "${info.name}"`);
+                    } else {
+                        showSuccessSnackbar(`Room "${info.name}" available to join`);
+                    }
+                } catch {
+                    // Not logged in or can't check — show join banner anyway
+                    setInviteBanner({
+                        name: info.name,
+                        room_code: code,
+                        is_member: false,
+                    });
+                    showSuccessSnackbar(`Room "${info.name}" available to join`);
+                }
+            } catch {
+                showErrorSnackbar('Invalid invite link — room not found');
+            }
+        })();
+
         searchParams.delete('invite');
         setSearchParams(searchParams, { replace: true });
     }, [searchParams, setSearchParams]);
 
-    const hydrated = joinedRooms
-        .map((j) => ({ joined: j, room: getRoom(j.roomId) }))
-        .filter((x): x is { joined: typeof joinedRooms[number]; room: Room } => !!x.room);
-
-    const handleCreated = (room: Room, name: string) => {
-        dispatch(setMemberName(name));
-        dispatch(rememberJoinedRoom({ roomId: room.id, memberName: name, joinedAt: Date.now() }));
-        navigate(`/rooms/${room.id}`);
+    const handleCreated = (room: APIRoom) => {
+        dispatch(rememberJoinedRoom({ roomCode: room.room_code, roomName: room.name, joinedAt: Date.now() }));
+        navigate(`/rooms/${room.room_code}`);
     };
 
-    const handleJoined = (room: Room, name: string) => {
-        dispatch(setMemberName(name));
-        dispatch(rememberJoinedRoom({ roomId: room.id, memberName: name, joinedAt: Date.now() }));
-        navigate(`/rooms/${room.id}`);
+    const handleJoined = (room: APIRoom) => {
+        dispatch(rememberJoinedRoom({ roomCode: room.room_code, roomName: room.name, joinedAt: Date.now() }));
+        navigate(`/rooms/${room.room_code}`);
     };
 
-    const handleCopy = (id: string) => {
-        navigator.clipboard.writeText(id);
-        showSuccessSnackbar(`Room ID copied: ${id}`);
+    const handleCopy = (code: string) => {
+        navigator.clipboard.writeText(code);
+        showSuccessSnackbar(`Room code copied: ${code}`);
     };
 
-    const handleCopyInvite = (room: Room) => {
-        const link = buildInviteLink(room);
+    const handleCopyInvite = (code: string) => {
+        const link = `${window.location.origin}/rooms?invite=${code}`;
         navigator.clipboard.writeText(link);
         showSuccessSnackbar('Invite link copied — share it to add others');
     };
@@ -96,29 +143,35 @@ const RoomsPage: React.FC = () => {
             {/* Invite banner */}
             {inviteBanner && (
                 <Alert
-                    severity='info'
+                    severity={inviteBanner.is_member ? 'success' : 'info'}
                     sx={{ mb: 2.5, fontWeight: 600 }}
                     action={
                         <Stack direction='row' spacing={1}>
                             <Button size='small' onClick={() => setInviteBanner(null)}>
                                 Dismiss
                             </Button>
-                            <Button
-                                size='small'
-                                variant='contained'
-                                color='primary'
-                                onClick={() => {
-                                    setJoinOpen(true);
-                                    setInviteBanner(null);
-                                }}
-                            >
-                                Join now
-                            </Button>
+                            {!inviteBanner.is_member && (
+                                <Button
+                                    size='small'
+                                    variant='contained'
+                                    color='primary'
+                                    onClick={() => {
+                                        setInviteRoomCode(inviteBanner.room_code);
+                                        setJoinOpen(true);
+                                        setInviteBanner(null);
+                                    }}
+                                >
+                                    Join now
+                                </Button>
+                            )}
                         </Stack>
                     }
                 >
-                    You've been invited to <strong>{inviteBanner.room.name}</strong>.
-                    Use ID <code>{inviteBanner.room.id}</code> and ask the creator for the password.
+                    {inviteBanner.is_member ? (
+                        <>You are already a member of <strong>{inviteBanner.name}</strong>.</>
+                    ) : (
+                        <>You've been invited to <strong>{inviteBanner.name}</strong>. Enter the password to join.</>
+                    )}
                 </Alert>
             )}
 
@@ -190,13 +243,16 @@ const RoomsPage: React.FC = () => {
                                         Join a room
                                     </Typography>
                                     <Typography variant='body2' sx={{ fontWeight: 600, color: 'rgba(10,10,10,0.75)' }}>
-                                        Enter with a room ID + password
+                                        Enter with a room code + password
                                     </Typography>
                                 </Box>
                                 <Button
                                     variant='contained'
                                     color='secondary'
-                                    onClick={() => setJoinOpen(true)}
+                                    onClick={() => {
+                                        setInviteRoomCode(undefined);
+                                        setJoinOpen(true);
+                                    }}
                                 >
                                     Join
                                 </Button>
@@ -237,20 +293,24 @@ const RoomsPage: React.FC = () => {
                                     Your rooms
                                 </Typography>
                                 <Typography variant='caption' color='text.secondary' sx={{ fontWeight: 600 }}>
-                                    {hydrated.length} joined
+                                    {rooms.length} joined
                                 </Typography>
                             </Box>
                         </Stack>
-                        {memberName && (
+                        {username && (
                             <Chip
-                                label={`You: ${memberName}`}
+                                label={`You: ${username}`}
                                 color='primary'
                                 sx={{ fontWeight: 700 }}
                             />
                         )}
                     </Stack>
 
-                    {hydrated.length === 0 ? (
+                    {loading ? (
+                        <Box sx={{ textAlign: 'center', py: 6 }}>
+                            <CircularProgress />
+                        </Box>
+                    ) : rooms.length === 0 ? (
                         <Box
                             sx={(t) => ({
                                 textAlign: 'center',
@@ -264,7 +324,7 @@ const RoomsPage: React.FC = () => {
                                 You haven't joined any rooms yet
                             </Typography>
                             <Typography variant='body2' color='text.secondary' sx={{ mb: 2 }}>
-                                Create one to start splitting expenses, or join with a friend's ID.
+                                Create one to start splitting expenses, or join with a friend's code.
                             </Typography>
                             <Stack direction='row' spacing={1.5} justifyContent='center'>
                                 <Button
@@ -278,7 +338,10 @@ const RoomsPage: React.FC = () => {
                                 <Button
                                     variant='outlined'
                                     startIcon={<GroupAddRounded />}
-                                    onClick={() => setJoinOpen(true)}
+                                    onClick={() => {
+                                        setInviteRoomCode(undefined);
+                                        setJoinOpen(true);
+                                    }}
                                 >
                                     Join room
                                 </Button>
@@ -286,10 +349,10 @@ const RoomsPage: React.FC = () => {
                         </Box>
                     ) : (
                         <Grid container spacing={2}>
-                            {hydrated.map(({ room, joined }, idx) => {
+                            {rooms.map((room, idx) => {
                                 const bg = HEADER_COLORS[idx % HEADER_COLORS.length];
                                 return (
-                                    <Grid item xs={12} sm={6} md={4} key={room.id}>
+                                    <Grid item xs={12} sm={6} md={4} key={room.room_code}>
                                         <Card sx={{ height: '100%' }}>
                                             <Box
                                                 sx={{
@@ -311,14 +374,14 @@ const RoomsPage: React.FC = () => {
                                                 <Stack spacing={1.25}>
                                                     <Stack direction='row' alignItems='center' spacing={0.5}>
                                                         <Chip
-                                                            label={room.id}
+                                                            label={room.room_code}
                                                             size='small'
                                                             sx={{ fontFamily: 'monospace', letterSpacing: '0.06em' }}
                                                         />
-                                                        <Tooltip title='Copy ID'>
+                                                        <Tooltip title='Copy code'>
                                                             <IconButton
                                                                 size='small'
-                                                                onClick={() => handleCopy(room.id)}
+                                                                onClick={() => handleCopy(room.room_code)}
                                                                 sx={{ width: 28, height: 28 }}
                                                             >
                                                                 <ContentCopyRounded sx={{ fontSize: 14 }} />
@@ -326,10 +389,10 @@ const RoomsPage: React.FC = () => {
                                                         </Tooltip>
                                                     </Stack>
                                                     <Typography variant='body2' color='text.secondary' sx={{ fontWeight: 600 }}>
-                                                        {room.members.length} member{room.members.length === 1 ? '' : 's'} · {room.expenses.length} expense{room.expenses.length === 1 ? '' : 's'}
+                                                        {room.member_count} member{room.member_count === 1 ? '' : 's'}
                                                     </Typography>
                                                     <Typography variant='caption' color='text.secondary'>
-                                                        You as <strong>{joined.memberName}</strong>
+                                                        Created by <strong>{room.created_by_username}</strong>
                                                     </Typography>
                                                     <Stack direction='row' spacing={1} sx={{ mt: 0.5 }}>
                                                         <Button
@@ -337,15 +400,22 @@ const RoomsPage: React.FC = () => {
                                                             color='primary'
                                                             size='small'
                                                             startIcon={<OpenInNewRounded />}
-                                                            onClick={() => navigate(`/rooms/${room.id}`)}
+                                                            onClick={() => navigate(`/rooms/${room.room_code}`)}
                                                             sx={{ flex: 1 }}
                                                         >
                                                             Open
                                                         </Button>
+                                                        <Button
+                                                            variant='outlined'
+                                                            size='small'
+                                                            onClick={() => navigate(`/rooms/${room.room_code}/settlement`)}
+                                                        >
+                                                            Balance
+                                                        </Button>
                                                         <Tooltip title='Copy invite link'>
                                                             <IconButton
                                                                 size='small'
-                                                                onClick={() => handleCopyInvite(room)}
+                                                                onClick={() => handleCopyInvite(room.room_code)}
                                                                 sx={{ width: 36, height: 36 }}
                                                             >
                                                                 <LinkRounded sx={{ fontSize: 18 }} />
@@ -355,7 +425,7 @@ const RoomsPage: React.FC = () => {
                                                             <Button
                                                                 variant='outlined'
                                                                 size='small'
-                                                                onClick={() => dispatch(forgetJoinedRoom(room.id))}
+                                                                onClick={() => dispatch(forgetJoinedRoom(room.room_code))}
                                                             >
                                                                 Forget
                                                             </Button>
@@ -375,13 +445,12 @@ const RoomsPage: React.FC = () => {
             <CreateRoomModal
                 open={createOpen}
                 onClose={() => setCreateOpen(false)}
-                defaultMemberName={memberName}
                 onCreated={handleCreated}
             />
             <JoinRoomModal
                 open={joinOpen}
                 onClose={() => setJoinOpen(false)}
-                defaultMemberName={memberName}
+                defaultRoomCode={inviteRoomCode}
                 onJoined={handleJoined}
             />
         </Box>

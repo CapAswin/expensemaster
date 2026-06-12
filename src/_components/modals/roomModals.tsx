@@ -18,15 +18,16 @@ import {
     Alert,
     Checkbox,
     FormControlLabel,
+    CircularProgress,
 } from '@mui/material';
 import { CloseRounded } from '@mui/icons-material';
 import {
-    createRoom,
-    joinRoom,
-    addExpense,
-    Room,
-    SplitMode,
-} from '../../_utils/roomsStore';
+    apiCreateRoom,
+    apiJoinRoom,
+    apiAddExpense,
+    APIRoom,
+    getApiErrorMessage,
+} from '../../_utils/roomsAPI';
 import { showErrorSnackbar, showSuccessSnackbar } from '../snackbar/Snackbar';
 
 const headerSx = (color: string) => ({
@@ -60,41 +61,41 @@ const wrapperSx = {
 interface CreateRoomModalProps {
     open: boolean;
     onClose: () => void;
-    defaultMemberName?: string | null;
-    onCreated: (room: Room, memberName: string) => void;
+    onCreated: (room: APIRoom) => void;
 }
 
 export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({
     open,
     onClose,
-    defaultMemberName,
     onCreated,
 }) => {
     const [name, setName] = useState('');
     const [password, setPassword] = useState('');
-    const [memberName, setMemberName] = useState(defaultMemberName ?? '');
+    const [loading, setLoading] = useState(false);
 
     useEffect(() => {
         if (open) {
             setName('');
             setPassword('');
-            setMemberName(defaultMemberName ?? '');
+            setLoading(false);
         }
-    }, [open, defaultMemberName]);
+    }, [open]);
 
-    const handleCreate = (e: React.FormEvent) => {
+    const handleCreate = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!memberName.trim()) return showErrorSnackbar('Enter your name');
         if (!name.trim()) return showErrorSnackbar('Enter a room name');
-        if (password.length < 3) return showErrorSnackbar('Password must be at least 3 characters');
-        const room = createRoom({
-            name: name.trim(),
-            password,
-            creatorName: memberName.trim(),
-        });
-        showSuccessSnackbar(`Room "${room.name}" created!`);
-        onCreated(room, memberName.trim());
-        onClose();
+        if (password.length < 4) return showErrorSnackbar('Password must be at least 4 characters');
+        setLoading(true);
+        try {
+            const room = await apiCreateRoom({ name: name.trim(), password });
+            showSuccessSnackbar(`Room "${room.name}" created!`);
+            onCreated(room);
+            onClose();
+        } catch (err) {
+            showErrorSnackbar(getApiErrorMessage(err, 'Failed to create room'));
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -112,14 +113,6 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({
                     <Box component='form' onSubmit={handleCreate} sx={{ p: 2.5 }}>
                         <Stack spacing={2}>
                             <TextField
-                                label='Your name'
-                                value={memberName}
-                                onChange={(e) => setMemberName(e.target.value)}
-                                placeholder='How others will see you'
-                                fullWidth
-                                required
-                            />
-                            <TextField
                                 label='Room name'
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
@@ -135,15 +128,15 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({
                                 placeholder='Share this with members to join'
                                 fullWidth
                                 required
-                                helperText='Minimum 3 characters'
+                                helperText='Minimum 4 characters'
                             />
                             <Divider sx={{ my: 0.5 }} />
                             <Stack direction='row' spacing={1.25} justifyContent='flex-end'>
-                                <Button variant='outlined' onClick={onClose}>
+                                <Button variant='outlined' onClick={onClose} disabled={loading}>
                                     Cancel
                                 </Button>
-                                <Button type='submit' variant='contained' color='primary'>
-                                    Create room
+                                <Button type='submit' variant='contained' color='primary' disabled={loading}>
+                                    {loading ? <CircularProgress size={20} /> : 'Create room'}
                                 </Button>
                             </Stack>
                         </Stack>
@@ -159,45 +152,46 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({
 interface JoinRoomModalProps {
     open: boolean;
     onClose: () => void;
-    defaultMemberName?: string | null;
-    onJoined: (room: Room, memberName: string) => void;
+    defaultRoomCode?: string;
+    onJoined: (room: APIRoom) => void;
 }
 
 export const JoinRoomModal: React.FC<JoinRoomModalProps> = ({
     open,
     onClose,
-    defaultMemberName,
+    defaultRoomCode,
     onJoined,
 }) => {
-    const [id, setId] = useState('');
+    const [roomCode, setRoomCode] = useState('');
     const [password, setPassword] = useState('');
-    const [memberName, setMemberName] = useState(defaultMemberName ?? '');
     const [error, setError] = useState<string | null>(null);
+    const [loading, setLoading] = useState(false);
 
     useEffect(() => {
         if (open) {
-            setId('');
+            setRoomCode(defaultRoomCode?.toUpperCase() ?? '');
             setPassword('');
-            setMemberName(defaultMemberName ?? '');
             setError(null);
+            setLoading(false);
         }
-    }, [open, defaultMemberName]);
+    }, [open, defaultRoomCode]);
 
-    const handleJoin = (e: React.FormEvent) => {
+    const handleJoin = async (e: React.FormEvent) => {
         e.preventDefault();
         setError(null);
-        if (!memberName.trim()) return setError('Enter your name');
-        if (!id.trim()) return setError('Enter the room ID');
+        if (!roomCode.trim()) return setError('Enter the room code');
         if (!password) return setError('Enter the room password');
-
-        const result = joinRoom({ id: id.trim(), password, memberName: memberName.trim() });
-        if (!result.ok) {
-            setError(result.reason === 'not-found' ? 'No room with that ID' : 'Wrong password');
-            return;
+        setLoading(true);
+        try {
+            const room = await apiJoinRoom({ room_code: roomCode.trim(), password });
+            showSuccessSnackbar(`Joined "${room.name}"`);
+            onJoined(room);
+            onClose();
+        } catch (err) {
+            setError(getApiErrorMessage(err, 'Failed to join room. Check code and password.'));
+        } finally {
+            setLoading(false);
         }
-        showSuccessSnackbar(`Joined "${result.room.name}"`);
-        onJoined(result.room, memberName.trim());
-        onClose();
     };
 
     return (
@@ -215,18 +209,10 @@ export const JoinRoomModal: React.FC<JoinRoomModalProps> = ({
                     <Box component='form' onSubmit={handleJoin} sx={{ p: 2.5 }}>
                         <Stack spacing={2}>
                             <TextField
-                                label='Your name'
-                                value={memberName}
-                                onChange={(e) => setMemberName(e.target.value)}
-                                placeholder='How others will see you'
-                                fullWidth
-                                required
-                            />
-                            <TextField
-                                label='Room ID'
-                                value={id}
-                                onChange={(e) => setId(e.target.value.toUpperCase())}
-                                placeholder='e.g. FNX-7K3'
+                                label='Room code'
+                                value={roomCode}
+                                onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
+                                placeholder='e.g. ABC123'
                                 fullWidth
                                 required
                                 inputProps={{ style: { fontFamily: 'monospace', letterSpacing: '0.08em' } }}
@@ -242,11 +228,11 @@ export const JoinRoomModal: React.FC<JoinRoomModalProps> = ({
                             {error && <Alert severity='error'>{error}</Alert>}
                             <Divider sx={{ my: 0.5 }} />
                             <Stack direction='row' spacing={1.25} justifyContent='flex-end'>
-                                <Button variant='outlined' onClick={onClose}>
+                                <Button variant='outlined' onClick={onClose} disabled={loading}>
                                     Cancel
                                 </Button>
-                                <Button type='submit' variant='contained' color='primary'>
-                                    Join room
+                                <Button type='submit' variant='contained' color='primary' disabled={loading}>
+                                    {loading ? <CircularProgress size={20} /> : 'Join room'}
                                 </Button>
                             </Stack>
                         </Stack>
@@ -262,86 +248,197 @@ export const JoinRoomModal: React.FC<JoinRoomModalProps> = ({
 interface AddExpenseModalProps {
     open: boolean;
     onClose: () => void;
-    room: Room;
-    currentMember: string;
+    room: APIRoom;
+    currentUsername: string;
     onAdded: () => void;
 }
+
+type SplitMode = 'equal' | 'exact';
+
+const roundMoney = (n: number) => Math.round(n * 100) / 100;
+
+/** Stable order: room member list, filtered to selected splitters. Last entry = auto remainder. */
+const orderedSplitMembers = (room: APIRoom, splitAmong: string[]) =>
+    room.members.map((m) => m.username).filter((u) => splitAmong.includes(u));
 
 export const AddRoomExpenseModal: React.FC<AddExpenseModalProps> = ({
     open,
     onClose,
     room,
-    currentMember,
+    currentUsername,
     onAdded,
 }) => {
-    const today = () => new Date().toISOString().split('T')[0];
-
     const [description, setDescription] = useState('');
     const [amount, setAmount] = useState<string>('');
-    const [paidBy, setPaidBy] = useState(currentMember);
-    const [splitAmong, setSplitAmong] = useState<string[]>(room.members.map((m) => m.name));
+    const [paidBy, setPaidBy] = useState(currentUsername);
+    const [splitAmong, setSplitAmong] = useState<string[]>(
+        room.members.map((m) => m.username),
+    );
     const [splitMode, setSplitMode] = useState<SplitMode>('equal');
     const [exactSplits, setExactSplits] = useState<Record<string, string>>({});
-    const [date, setDate] = useState<string>(today());
+    const [loading, setLoading] = useState(false);
 
     useEffect(() => {
         if (open) {
             setDescription('');
             setAmount('');
-            setPaidBy(currentMember);
-            setSplitAmong(room.members.map((m) => m.name));
+            setPaidBy(currentUsername);
+            setSplitAmong(room.members.map((m) => m.username));
             setSplitMode('equal');
             setExactSplits({});
-            setDate(today());
+            setLoading(false);
         }
-    }, [open, room, currentMember]);
+    }, [open, room, currentUsername]);
 
-    const exactTotal = useMemo(
-        () =>
-            splitAmong.reduce(
+    const numericAmount = parseFloat(amount) || 0;
+
+    const orderedSplit = useMemo(
+        () => orderedSplitMembers(room, splitAmong),
+        [room, splitAmong],
+    );
+
+    const exactSplitMeta = useMemo(() => {
+        if (splitMode !== 'exact' || orderedSplit.length === 0) {
+            return {
+                editableNames: [] as string[],
+                autoName: null as string | null,
+                autoAmount: 0,
+                sumEditable: 0,
+                exactOk: true,
+                overBy: 0,
+            };
+        }
+
+        const autoName =
+            orderedSplit.length === 1 ? orderedSplit[0] : orderedSplit[orderedSplit.length - 1];
+        const editableNames =
+            orderedSplit.length === 1 ? [] : orderedSplit.slice(0, -1);
+
+        const sumEditable = roundMoney(
+            editableNames.reduce(
                 (s, name) => s + (parseFloat(exactSplits[name] || '0') || 0),
                 0,
             ),
-        [exactSplits, splitAmong],
-    );
-
-    const numericAmount = parseFloat(amount) || 0;
-    const exactOk =
-        splitMode !== 'exact' || Math.abs(exactTotal - numericAmount) < 0.01;
-
-    const toggleSplit = (name: string) => {
-        setSplitAmong((prev) =>
-            prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name],
         );
+
+        const autoAmount =
+            orderedSplit.length === 1
+                ? roundMoney(numericAmount)
+                : roundMoney(numericAmount - sumEditable);
+
+        const overBy = roundMoney(Math.max(0, sumEditable - numericAmount));
+        const exactOk =
+            numericAmount > 0 &&
+            autoAmount >= -0.005 &&
+            overBy < 0.01 &&
+            Math.abs(sumEditable + autoAmount - numericAmount) < 0.02;
+
+        return {
+            editableNames,
+            autoName,
+            autoAmount,
+            sumEditable,
+            exactOk,
+            overBy,
+        };
+    }, [splitMode, orderedSplit, exactSplits, numericAmount]);
+
+    const handleExactSplitChange = (name: string, raw: string) => {
+        if (!exactSplitMeta.editableNames.includes(name)) return;
+
+        if (raw === '' || raw === '.') {
+            setExactSplits((p) => ({ ...p, [name]: raw }));
+            return;
+        }
+
+        let val = parseFloat(raw);
+        if (Number.isNaN(val) || val < 0) val = 0;
+
+        const othersSum = exactSplitMeta.editableNames
+            .filter((n) => n !== name)
+            .reduce((s, n) => s + (parseFloat(exactSplits[n] || '0') || 0), 0);
+
+        const maxAllowed = roundMoney(Math.max(0, numericAmount - othersSum));
+        if (val > maxAllowed) val = maxAllowed;
+
+        setExactSplits((p) => ({
+            ...p,
+            [name]: raw.includes('.') && raw.endsWith('.') ? raw : String(val),
+        }));
     };
 
-    const handleAdd = (e: React.FormEvent) => {
+    const toggleSplit = (name: string) => {
+        setSplitAmong((prev) => {
+            const removing = prev.includes(name);
+            if (removing) {
+                setExactSplits((p) => {
+                    const next = { ...p };
+                    delete next[name];
+                    return next;
+                });
+            }
+            return removing ? prev.filter((n) => n !== name) : [...prev, name];
+        });
+    };
+
+    const handleAdd = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!description.trim()) return showErrorSnackbar('Enter a description');
         if (numericAmount <= 0) return showErrorSnackbar('Enter a valid amount');
         if (splitAmong.length === 0) return showErrorSnackbar('Pick at least one person to split with');
-        if (splitMode === 'exact' && !exactOk)
+        if (splitMode === 'exact' && !exactSplitMeta.exactOk) {
+            if (exactSplitMeta.overBy > 0) {
+                return showErrorSnackbar(
+                    `Split amounts exceed the total by ₹${exactSplitMeta.overBy.toFixed(2)}`,
+                );
+            }
+            if (exactSplitMeta.autoAmount < 0) {
+                return showErrorSnackbar('Reduce member amounts — remainder cannot be negative');
+            }
             return showErrorSnackbar(`Exact splits must total ₹${numericAmount.toFixed(2)}`);
+        }
 
-        const exact: Record<string, number> | undefined =
-            splitMode === 'exact'
-                ? Object.fromEntries(
-                      splitAmong.map((n) => [n, parseFloat(exactSplits[n] || '0') || 0]),
-                  )
-                : undefined;
+        // Map usernames to user IDs
+        const usernameToId: Record<string, number> = {};
+        room.members.forEach((m) => { usernameToId[m.username] = m.id; });
 
-        addExpense(room.id, {
-            description: description.trim(),
-            amount: numericAmount,
-            paidBy,
-            splitAmong,
-            splitMode,
-            exactSplits: exact,
-            date,
-        });
-        showSuccessSnackbar('Expense added');
-        onAdded();
-        onClose();
+        const payerId = usernameToId[paidBy];
+        if (!payerId) return showErrorSnackbar('Select who paid for this expense');
+
+        setLoading(true);
+        try {
+            const base = {
+                amount: numericAmount,
+                description: description.trim(),
+                paid_by: payerId,
+            };
+            if (splitMode === 'exact') {
+                const shares: Record<string, number> = {};
+                orderedSplit.forEach((name) => {
+                    const uid = usernameToId[name];
+                    if (!uid) return;
+                    const isAuto =
+                        exactSplitMeta.autoName === name && orderedSplit.length > 1;
+                    const shareAmount = isAuto
+                        ? exactSplitMeta.autoAmount
+                        : parseFloat(exactSplits[name] || '0') || 0;
+                    shares[String(uid)] = roundMoney(shareAmount);
+                });
+                await apiAddExpense(room.room_code, { ...base, shares });
+            } else {
+                const splitIds = splitAmong
+                    .map((name) => usernameToId[name])
+                    .filter(Boolean) as number[];
+                await apiAddExpense(room.room_code, { ...base, split_among: splitIds });
+            }
+            showSuccessSnackbar('Expense added');
+            onAdded();
+            onClose();
+        } catch (err) {
+            showErrorSnackbar(getApiErrorMessage(err, 'Failed to add expense'));
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -376,15 +473,6 @@ export const AddRoomExpenseModal: React.FC<AddExpenseModalProps> = ({
                                     required
                                     fullWidth
                                 />
-                                <TextField
-                                    label='Date'
-                                    type='date'
-                                    value={date}
-                                    onChange={(e) => setDate(e.target.value)}
-                                    fullWidth
-                                    required
-                                    InputLabelProps={{ shrink: true }}
-                                />
                             </Stack>
                             <FormControl fullWidth size='small'>
                                 <InputLabel>Paid by</InputLabel>
@@ -394,9 +482,9 @@ export const AddRoomExpenseModal: React.FC<AddExpenseModalProps> = ({
                                     onChange={(e) => setPaidBy(e.target.value)}
                                 >
                                     {room.members.map((m) => (
-                                        <MenuItem key={m.name} value={m.name}>
-                                            {m.name}
-                                            {m.name === currentMember ? ' (you)' : ''}
+                                        <MenuItem key={m.id} value={m.username}>
+                                            {m.username}
+                                            {m.username === currentUsername ? ' (you)' : ''}
                                         </MenuItem>
                                     ))}
                                 </Select>
@@ -441,18 +529,18 @@ export const AddRoomExpenseModal: React.FC<AddExpenseModalProps> = ({
                                 >
                                     {room.members.map((m) => (
                                         <FormControlLabel
-                                            key={m.name}
+                                            key={m.username}
                                             sx={{ m: 0, mr: 1 }}
                                             control={
                                                 <Checkbox
                                                     size='small'
-                                                    checked={splitAmong.includes(m.name)}
-                                                    onChange={() => toggleSplit(m.name)}
+                                                    checked={splitAmong.includes(m.username)}
+                                                    onChange={() => toggleSplit(m.username)}
                                                 />
                                             }
                                             label={
                                                 <Typography sx={{ fontWeight: 600, fontSize: 14 }}>
-                                                    {m.name}
+                                                    {m.username}
                                                 </Typography>
                                             }
                                         />
@@ -465,45 +553,119 @@ export const AddRoomExpenseModal: React.FC<AddExpenseModalProps> = ({
                                 )}
                             </Box>
 
-                            {splitMode === 'exact' && splitAmong.length > 0 && (
+                            {splitMode === 'exact' && orderedSplit.length > 0 && numericAmount > 0 && (
                                 <Box>
                                     <Typography variant='caption' sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                                         Exact amounts
                                     </Typography>
-                                    <Stack spacing={1} sx={{ mt: 0.5 }}>
-                                        {splitAmong.map((n) => (
-                                            <Stack direction='row' alignItems='center' spacing={1} key={n}>
-                                                <Typography sx={{ flex: 1, fontWeight: 600 }}>{n}</Typography>
-                                                <TextField
-                                                    size='small'
-                                                    type='number'
-                                                    value={exactSplits[n] ?? ''}
-                                                    onChange={(e) =>
-                                                        setExactSplits((p) => ({ ...p, [n]: e.target.value }))
-                                                    }
-                                                    inputProps={{ min: 0, step: 0.01 }}
-                                                    sx={{ width: 120 }}
-                                                />
-                                            </Stack>
-                                        ))}
+                                    {orderedSplit.length > 1 && (
+                                        <Typography variant='caption' color='text.secondary' sx={{ display: 'block', mt: 0.25, fontWeight: 600 }}>
+                                            Enter amounts for each member except the last —{' '}
+                                            <strong>{exactSplitMeta.autoName}</strong> is calculated automatically.
+                                        </Typography>
+                                    )}
+                                    <Stack spacing={1} sx={{ mt: 0.75 }}>
+                                        {orderedSplit.map((n) => {
+                                            const isAuto =
+                                                exactSplitMeta.autoName === n && orderedSplit.length > 1;
+                                            return (
+                                                <Stack direction='row' alignItems='center' spacing={1} key={n}>
+                                                    <Typography sx={{ flex: 1, fontWeight: 600 }}>
+                                                        {n}
+                                                        {isAuto && (
+                                                            <Typography
+                                                                component='span'
+                                                                variant='caption'
+                                                                color='text.secondary'
+                                                                sx={{ ml: 0.5, fontWeight: 600 }}
+                                                            >
+                                                                (auto)
+                                                            </Typography>
+                                                        )}
+                                                    </Typography>
+                                                    <TextField
+                                                        size='small'
+                                                        type='number'
+                                                        disabled={isAuto}
+                                                        value={
+                                                            isAuto
+                                                                ? exactSplitMeta.autoAmount.toFixed(2)
+                                                                : exactSplits[n] ?? ''
+                                                        }
+                                                        onChange={(e) =>
+                                                            handleExactSplitChange(n, e.target.value)
+                                                        }
+                                                        inputProps={{
+                                                            min: 0,
+                                                            step: 0.01,
+                                                            max: isAuto
+                                                                ? undefined
+                                                                : roundMoney(
+                                                                      numericAmount -
+                                                                          exactSplitMeta.editableNames
+                                                                              .filter((x) => x !== n)
+                                                                              .reduce(
+                                                                                  (s, x) =>
+                                                                                      s +
+                                                                                      (parseFloat(
+                                                                                          exactSplits[x] || '0',
+                                                                                      ) || 0),
+                                                                                  0,
+                                                                              ),
+                                                                  ),
+                                                        }}
+                                                        error={
+                                                            !isAuto &&
+                                                            exactSplitMeta.overBy > 0 &&
+                                                            (parseFloat(exactSplits[n] || '0') || 0) > 0
+                                                        }
+                                                        helperText={
+                                                            isAuto
+                                                                ? 'Remainder'
+                                                                : undefined
+                                                        }
+                                                        sx={{ width: 130 }}
+                                                    />
+                                                </Stack>
+                                            );
+                                        })}
                                     </Stack>
                                     <Typography
                                         variant='caption'
-                                        sx={{ mt: 0.5, display: 'block', fontWeight: 600 }}
-                                        color={exactOk ? 'success.dark' : 'error.main'}
+                                        sx={{ mt: 0.75, display: 'block', fontWeight: 600 }}
+                                        color={
+                                            exactSplitMeta.exactOk ? 'success.dark' : 'error.main'
+                                        }
                                     >
-                                        Total: ₹{exactTotal.toFixed(2)} / ₹{numericAmount.toFixed(2)}
+                                        Total: ₹
+                                        {roundMoney(
+                                            exactSplitMeta.sumEditable + exactSplitMeta.autoAmount,
+                                        ).toFixed(2)}{' '}
+                                        / ₹{numericAmount.toFixed(2)}
+                                        {exactSplitMeta.overBy > 0 &&
+                                            ` — over by ₹${exactSplitMeta.overBy.toFixed(2)}`}
+                                        {exactSplitMeta.autoAmount < -0.005 &&
+                                            ' — amounts are too high'}
                                     </Typography>
                                 </Box>
                             )}
 
                             <Divider sx={{ my: 0.5 }} />
                             <Stack direction='row' spacing={1.25} justifyContent='flex-end'>
-                                <Button variant='outlined' onClick={onClose}>
+                                <Button variant='outlined' onClick={onClose} disabled={loading}>
                                     Cancel
                                 </Button>
-                                <Button type='submit' variant='contained' color='primary' disabled={!exactOk}>
-                                    Add expense
+                                <Button
+                                    type='submit'
+                                    variant='contained'
+                                    color='primary'
+                                    disabled={
+                                        loading ||
+                                        (splitMode === 'exact' &&
+                                            (numericAmount <= 0 || !exactSplitMeta.exactOk))
+                                    }
+                                >
+                                    {loading ? <CircularProgress size={20} /> : 'Add expense'}
                                 </Button>
                             </Stack>
                         </Stack>

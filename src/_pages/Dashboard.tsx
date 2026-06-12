@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import axiosInstance from '../_utils/axios';
 import {
@@ -43,6 +43,12 @@ import HorizontalBarChart from '../_components/graphs/horizontalBar';
 import { Transaction } from './transactionGrid';
 import { loginv2 } from '../redux/authSlice';
 import { useDispatch } from 'react-redux';
+import {
+    buildTimeSeries,
+    computeTotals,
+    filterDashboardTransactions,
+    formatInr,
+} from '../_utils/dashboardCharts';
 
 Chart.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend);
 
@@ -158,6 +164,12 @@ const DashBoard: React.FC = () => {
                 padding: 10,
                 cornerRadius: 6,
                 titleFont: { weight: 'bold' as const },
+                callbacks: {
+                    label: (ctx: { dataset: { label?: string }; parsed: { y: number } }) => {
+                        const label = ctx.dataset.label ?? '';
+                        return ` ${label}: ${formatInr(ctx.parsed.y ?? 0)}`;
+                    },
+                },
             },
         },
         scales: {
@@ -239,51 +251,24 @@ const DashBoard: React.FC = () => {
         { value: 'bar', label: 'Bar Chart' },
     ];
 
-    const filterTransactions = (txs: Transaction[]) => {
-        if (!dateRange[0] && !dateRange[1]) return txs;
-        return txs.filter((t) => {
-            const td = dayjs(t.TransactionDate);
-            if (dateRange[0] && dateRange[1]) return td.isAfter(dateRange[0]) && td.isBefore(dateRange[1]);
-            if (dateRange[0]) return td.isAfter(dateRange[0]);
-            if (dateRange[1]) return td.isBefore(dateRange[1]);
-            return true;
-        });
-    };
+    const filteredTransactions = useMemo(() => {
+        if (!transactions) return [];
+        return filterDashboardTransactions(transactions, dateRange, selectedCategory);
+    }, [transactions, dateRange, selectedCategory]);
 
     useEffect(() => {
-        if (!transactions) return;
-        let filtered = filterTransactions(transactions);
-        if (selectedCategory !== 'all') {
-            filtered = filtered.filter((t) => t.CategoryID.id === parseInt(selectedCategory));
-        }
+        const totals = computeTotals(filteredTransactions);
+        setData(totals);
 
-        let totalIncome = 0;
-        let totalExpense = 0;
-        const incomeData: Record<string, number> = {};
-        const expenseData: Record<string, number> = {};
-
-        filtered.forEach((t) => {
-            const date = t.TransactionDate.split('T')[0];
-            if (t.TransactionType === 'Income') {
-                totalIncome += t.Amount;
-                incomeData[date] = (incomeData[date] || 0) + t.Amount;
-            } else if (t.TransactionType === 'Expense') {
-                totalExpense += t.Amount;
-                expenseData[date] = (expenseData[date] || 0) + t.Amount;
-            }
-        });
-
-        setData({ income: totalIncome, expense: totalExpense, balance: totalIncome - totalExpense });
-
-        const labels = Object.keys({ ...incomeData, ...expenseData }).sort();
+        const series = buildTimeSeries(filteredTransactions, dateRange);
         setChartData({
-            labels,
+            labels: series.labels,
             datasets: [
-                incomeDataset(labels.map((l) => incomeData[l] || 0)),
-                expenseDataset(labels.map((l) => expenseData[l] || 0)),
+                incomeDataset(series.income),
+                expenseDataset(series.expense),
             ],
         });
-    }, [transactions, dateRange, selectedCategory]);
+    }, [filteredTransactions, dateRange]);
 
     if (transactionsError || categoriesError) {
         return (
@@ -348,7 +333,10 @@ const DashBoard: React.FC = () => {
                             {isLoading ? (
                                 <Skeleton variant='rounded' height={240} />
                             ) : transactions ? (
-                                <HorizontalBarChart transactions={transactions} TransactionType='Income' />
+                                <HorizontalBarChart
+                                    transactions={filteredTransactions}
+                                    TransactionType='Income'
+                                />
                             ) : (
                                 <Typography color='text.secondary'>No transactions available</Typography>
                             )}
@@ -364,7 +352,10 @@ const DashBoard: React.FC = () => {
                             {isLoading ? (
                                 <Skeleton variant='rounded' height={240} />
                             ) : transactions ? (
-                                <HorizontalBarChart transactions={transactions} TransactionType='Expense' />
+                                <HorizontalBarChart
+                                    transactions={filteredTransactions}
+                                    TransactionType='Expense'
+                                />
                             ) : (
                                 <Typography color='text.secondary'>No transactions available</Typography>
                             )}
@@ -432,6 +423,21 @@ const DashBoard: React.FC = () => {
                     <Box sx={{ height: 320 }}>
                         {isLoading ? (
                             <Skeleton variant='rounded' height={320} />
+                        ) : chartData.labels.length === 0 ? (
+                            <Box
+                                sx={(t) => ({
+                                    height: '100%',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    border: `2px dashed ${t.palette.divider}`,
+                                    borderRadius: 2,
+                                })}
+                            >
+                                <Typography variant='body2' color='text.secondary' sx={{ fontWeight: 600 }}>
+                                    No transactions in the selected date range
+                                </Typography>
+                            </Box>
                         ) : chartType === 'line' ? (
                             <Line data={chartData} options={chartJsOptions} />
                         ) : (
