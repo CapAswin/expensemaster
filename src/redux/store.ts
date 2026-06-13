@@ -1,28 +1,44 @@
 import { configureStore, combineReducers } from '@reduxjs/toolkit';
-import { persistStore, persistReducer } from 'redux-persist';
+import {
+    persistStore,
+    persistReducer,
+    FLUSH,
+    REHYDRATE,
+    PAUSE,
+    PERSIST,
+    PURGE,
+    REGISTER,
+} from 'redux-persist';
 import storage from 'redux-persist/lib/storage';
 import authReducer from './authSlice';
 import dataReducer from './dataSlice';
 import modalReducer from './modalSlice';
+import roomReducer from './roomSlice';
 
 // Configuration for the persisted reducers
 const persistConfig = {
-    key: 'root', // The key for the persisted state
+    key: 'root',
     storage,
-    whitelist: ['auth', 'data'], // Only the 'auth' and 'data' slices will be persisted
+    whitelist: ['auth', 'data', 'room'],
 };
 
-// Create a persisted reducer for the auth and data slices
 const rootReducer = combineReducers({
     auth: authReducer,
     data: dataReducer,
-    modal: modalReducer, // Modal slice is not persisted
+    modal: modalReducer,
+    room: roomReducer,
 });
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);
 
 export const store = configureStore({
     reducer: persistedReducer,
+    middleware: (getDefaultMiddleware) =>
+        getDefaultMiddleware({
+            serializableCheck: {
+                ignoredActions: [FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, REGISTER],
+            },
+        }),
 });
 
 // Correctly type 'persistor'

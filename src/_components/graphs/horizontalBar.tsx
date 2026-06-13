@@ -1,14 +1,15 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Bar } from 'react-chartjs-2';
-import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js';
-import { useTheme } from '@mui/material';
+import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Tooltip, Legend } from 'chart.js';
+import { Box, Typography, useTheme } from '@mui/material';
 import { Transaction } from '../../_pages/transactionGrid';
+import { aggregateByCategory, formatInr } from '../../_utils/dashboardCharts';
 
-ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
+ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend);
 
 interface Props {
     transactions: Transaction[];
-    TransactionType: string;
+    TransactionType: 'Income' | 'Expense';
 }
 
 const HorizontalBarChart: React.FC<Props> = ({ transactions, TransactionType }) => {
@@ -21,38 +22,43 @@ const HorizontalBarChart: React.FC<Props> = ({ transactions, TransactionType }) 
     const fillColor = isIncome ? '#bef264' : '#fca5a5';
     const borderColor = '#0a0a0a';
 
-    const typeTxs = transactions.filter((tx) => tx.TransactionType === TransactionType);
-    const totalType = typeTxs.reduce((sum, tx) => sum + tx.Amount, 0);
+    const entries = useMemo(
+        () => aggregateByCategory(transactions, TransactionType),
+        [transactions, TransactionType],
+    );
 
-    const categoryMap = new Map<number, { name: string; amount: number }>();
-    typeTxs.forEach((tx) => {
-        const id = tx.CategoryID.id;
-        const name = tx.CategoryID.Name;
-        if (!categoryMap.has(id)) categoryMap.set(id, { name, amount: 0 });
-        const entry = categoryMap.get(id)!;
-        entry.amount += tx.Amount;
-    });
+    const totalType = useMemo(
+        () => entries.reduce((s, e) => s + e.amount, 0),
+        [entries],
+    );
 
-    const allCategories = Array.from(new Set(transactions.map((tx) => tx.CategoryID.id))).map((id) => ({
-        id,
-        name: transactions.find((tx) => tx.CategoryID.id === id)?.CategoryID.Name || 'Unknown',
-    }));
-    allCategories.forEach((c) => {
-        if (!categoryMap.has(c.id)) categoryMap.set(c.id, { name: c.name, amount: 0 });
-    });
-
-    const entries = Array.from(categoryMap.values());
-    const labels = entries.map((e) => e.name);
-    const data = entries.map((e) => (totalType > 0 ? (e.amount / totalType) * 100 : 0));
+    if (entries.length === 0) {
+        return (
+            <Box
+                sx={(t) => ({
+                    height: 260,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    border: `2px dashed ${t.palette.divider}`,
+                    borderRadius: 2,
+                })}
+            >
+                <Typography variant='body2' color='text.secondary' sx={{ fontWeight: 600 }}>
+                    No {TransactionType.toLowerCase()} in this period
+                </Typography>
+            </Box>
+        );
+    }
 
     const chartData = {
-        labels,
+        labels: entries.map((e) => e.name),
         datasets: [
             {
-                label: `% of ${TransactionType.toLowerCase()}`,
-                data,
+                label: TransactionType,
+                data: entries.map((e) => e.amount),
                 backgroundColor: fillColor,
-                borderColor: borderColor,
+                borderColor,
                 borderWidth: 2,
                 borderRadius: 4,
                 borderSkipped: false as const,
@@ -76,23 +82,27 @@ const HorizontalBarChart: React.FC<Props> = ({ transactions, TransactionType }) 
                 cornerRadius: 6,
                 titleFont: { weight: 'bold' as const },
                 callbacks: {
-                    label: (ctx: any) => ` ${ctx.parsed.x.toFixed(1)}%`,
+                    label: (ctx: { parsed: { x: number } }) => {
+                        const amount = ctx.parsed.x || 0;
+                        const pct = totalType > 0 ? ((amount / totalType) * 100).toFixed(1) : '0';
+                        return ` ${formatInr(amount)} (${pct}%)`;
+                    },
                 },
             },
         },
-        layout: { padding: { top: 4, bottom: 4 } },
+        layout: { padding: { top: 4, bottom: 4, right: 8 } },
         scales: {
             y: {
                 grid: { display: false },
-                ticks: { color: ink, font: { weight: 600 as any } },
+                ticks: { color: ink, font: { weight: 600 as const, size: 11 } },
                 border: { color: ink, width: 2 },
             },
             x: {
                 grid: { color: gridColor, drawTicks: false },
                 ticks: {
                     color: ink,
-                    font: { weight: 600 as any },
-                    callback: (v: any) => `${v}%`,
+                    font: { weight: 600 as const, size: 11 },
+                    callback: (v: string | number) => formatInr(Number(v)),
                 },
                 border: { color: ink, width: 2 },
                 beginAtZero: true,
@@ -101,7 +111,7 @@ const HorizontalBarChart: React.FC<Props> = ({ transactions, TransactionType }) 
     };
 
     return (
-        <div style={{ height: 260 }}>
+        <div style={{ height: Math.max(160, entries.length * 44) }}>
             <Bar data={chartData} options={options} />
         </div>
     );

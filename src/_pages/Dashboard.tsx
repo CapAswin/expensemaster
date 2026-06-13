@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import axiosInstance from '../_utils/axios';
 import {
@@ -42,7 +42,15 @@ import {
 import HorizontalBarChart from '../_components/graphs/horizontalBar';
 import { Transaction } from './transactionGrid';
 import { loginv2 } from '../redux/authSlice';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
+import { RootState } from '../redux/store';
+import {
+    buildTimeSeries,
+    computeTotals,
+    filterDashboardTransactions,
+    formatInr,
+} from '../_utils/dashboardCharts';
+import { apiListRooms, apiListExpenses } from '../_utils/roomsAPI';
 
 Chart.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend);
 
@@ -158,6 +166,12 @@ const DashBoard: React.FC = () => {
                 padding: 10,
                 cornerRadius: 6,
                 titleFont: { weight: 'bold' as const },
+                callbacks: {
+                    label: (ctx: { dataset: { label?: string }; parsed: { y: number } }) => {
+                        const label = ctx.dataset.label ?? '';
+                        return ` ${label}: ${formatInr(ctx.parsed.y ?? 0)}`;
+                    },
+                },
             },
         },
         scales: {
@@ -193,6 +207,33 @@ const DashBoard: React.FC = () => {
     useEffect(() => {
         dispatch(loginv2({ username: user?.username ?? '' }));
     }, [user, dispatch]);
+
+    const username = useSelector((s: RootState) => s.auth.username);
+
+    const { data: roomExpenses = [] } = useQuery({
+        queryKey: ['room-expenses', username],
+        queryFn: async () => {
+            try {
+                const rooms = await apiListRooms();
+                const allExpenses = await Promise.all(
+                    rooms.map((r) => apiListExpenses(r.room_code)),
+                );
+                return allExpenses.flat();
+            } catch {
+                return [];
+            }
+        },
+        enabled: !!username,
+        staleTime: 30_000,
+    });
+
+    const userRoomExpense = useMemo(() => {
+        if (!username) return 0;
+        return roomExpenses.reduce((sum, e) => {
+            const myShare = e.shares.find((s) => s.username === username);
+            return sum + (myShare?.share_amount ?? 0);
+        }, 0);
+    }, [roomExpenses, username]);
 
     const [data, setData] = useState({ income: 0, expense: 0, balance: 0 });
 
@@ -239,51 +280,29 @@ const DashBoard: React.FC = () => {
         { value: 'bar', label: 'Bar Chart' },
     ];
 
-    const filterTransactions = (txs: Transaction[]) => {
-        if (!dateRange[0] && !dateRange[1]) return txs;
-        return txs.filter((t) => {
-            const td = dayjs(t.TransactionDate);
-            if (dateRange[0] && dateRange[1]) return td.isAfter(dateRange[0]) && td.isBefore(dateRange[1]);
-            if (dateRange[0]) return td.isAfter(dateRange[0]);
-            if (dateRange[1]) return td.isBefore(dateRange[1]);
-            return true;
-        });
-    };
+    const filteredTransactions = useMemo(() => {
+        if (!transactions) return [];
+        return filterDashboardTransactions(transactions, dateRange, selectedCategory);
+    }, [transactions, dateRange, selectedCategory]);
 
     useEffect(() => {
-        if (!transactions) return;
-        let filtered = filterTransactions(transactions);
-        if (selectedCategory !== 'all') {
-            filtered = filtered.filter((t) => t.CategoryID.id === parseInt(selectedCategory));
-        }
-
-        let totalIncome = 0;
-        let totalExpense = 0;
-        const incomeData: Record<string, number> = {};
-        const expenseData: Record<string, number> = {};
-
-        filtered.forEach((t) => {
-            const date = t.TransactionDate.split('T')[0];
-            if (t.TransactionType === 'Income') {
-                totalIncome += t.Amount;
-                incomeData[date] = (incomeData[date] || 0) + t.Amount;
-            } else if (t.TransactionType === 'Expense') {
-                totalExpense += t.Amount;
-                expenseData[date] = (expenseData[date] || 0) + t.Amount;
-            }
+        const totals = computeTotals(filteredTransactions);
+        const totalExpense = totals.expense + userRoomExpense;
+        setData({
+            income: totals.income,
+            expense: totalExpense,
+            balance: totals.income - totalExpense,
         });
 
-        setData({ income: totalIncome, expense: totalExpense, balance: totalIncome - totalExpense });
-
-        const labels = Object.keys({ ...incomeData, ...expenseData }).sort();
+        const series = buildTimeSeries(filteredTransactions, dateRange);
         setChartData({
-            labels,
+            labels: series.labels,
             datasets: [
-                incomeDataset(labels.map((l) => incomeData[l] || 0)),
-                expenseDataset(labels.map((l) => expenseData[l] || 0)),
+                incomeDataset(series.income),
+                expenseDataset(series.expense),
             ],
         });
-    }, [transactions, dateRange, selectedCategory]);
+    }, [filteredTransactions, dateRange, userRoomExpense]);
 
     if (transactionsError || categoriesError) {
         return (
@@ -348,7 +367,10 @@ const DashBoard: React.FC = () => {
                             {isLoading ? (
                                 <Skeleton variant='rounded' height={240} />
                             ) : transactions ? (
-                                <HorizontalBarChart transactions={transactions} TransactionType='Income' />
+                                <HorizontalBarChart
+                                    transactions={filteredTransactions}
+                                    TransactionType='Income'
+                                />
                             ) : (
                                 <Typography color='text.secondary'>No transactions available</Typography>
                             )}
@@ -364,7 +386,10 @@ const DashBoard: React.FC = () => {
                             {isLoading ? (
                                 <Skeleton variant='rounded' height={240} />
                             ) : transactions ? (
-                                <HorizontalBarChart transactions={transactions} TransactionType='Expense' />
+                                <HorizontalBarChart
+                                    transactions={filteredTransactions}
+                                    TransactionType='Expense'
+                                />
                             ) : (
                                 <Typography color='text.secondary'>No transactions available</Typography>
                             )}
@@ -432,6 +457,21 @@ const DashBoard: React.FC = () => {
                     <Box sx={{ height: 320 }}>
                         {isLoading ? (
                             <Skeleton variant='rounded' height={320} />
+                        ) : chartData.labels.length === 0 ? (
+                            <Box
+                                sx={(t) => ({
+                                    height: '100%',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    border: `2px dashed ${t.palette.divider}`,
+                                    borderRadius: 2,
+                                })}
+                            >
+                                <Typography variant='body2' color='text.secondary' sx={{ fontWeight: 600 }}>
+                                    No transactions in the selected date range
+                                </Typography>
+                            </Box>
                         ) : chartType === 'line' ? (
                             <Line data={chartData} options={chartJsOptions} />
                         ) : (

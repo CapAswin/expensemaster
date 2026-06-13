@@ -1,126 +1,169 @@
 import React, { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import axiosInstance from '../_utils/axios';
-import { TextField, Button, Box, Typography, Container, Paper, InputAdornment, IconButton } from '@mui/material';
+import {
+    Button,
+    IconButton,
+    InputAdornment,
+    Stack,
+    TextField,
+    Typography,
+} from '@mui/material';
+import {
+    LockRounded,
+    LoginRounded,
+    PersonRounded,
+    VisibilityOffRounded,
+    VisibilityRounded,
+} from '@mui/icons-material';
 import { useDispatch } from 'react-redux';
+
+import axiosInstance from '../_utils/axios';
 import { login } from '../redux/authSlice';
 import { showSuccessSnackbar, showWarningSnackbar } from '../_components/snackbar/Snackbar';
-import { Visibility, VisibilityOff } from '@mui/icons-material';
 
-interface User {
-    email: string;
-    username: string;
-}
 interface LoginResponse {
     token: string;
 }
-
 interface LoginData {
     username: string;
     password: string;
 }
 
-const loginUser = async (userData: LoginData): Promise<LoginResponse> => {
-    const response = await axiosInstance.post<LoginResponse>('/api/login/', userData);
+const loginUser = async (data: LoginData): Promise<LoginResponse> => {
+    const response = await axiosInstance.post<LoginResponse>('/api/login/', data);
     return response.data;
 };
 
-const Login: React.FC = () => {
-    const [username, setusername] = useState<string>('');
-    const [password, setPassword] = useState<string>('');
-    const [showPassword, setShowPassword] = useState<Boolean>(false);
+interface LoginProps {
+    onSwitchToRegister?: () => void;
+}
 
-    let dispatch = useDispatch()
+const Login: React.FC<LoginProps> = ({ onSwitchToRegister }) => {
+    const [username, setUsername] = useState('');
+    const [password, setPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
+    const dispatch = useDispatch();
 
     const mutation = useMutation<LoginResponse, unknown, LoginData>({
         mutationFn: loginUser,
         onSuccess: (data) => {
-            // Store the returned token in local storage
-            dispatch(login({
-                isLoggedIn: true,
-                token: data.token
-            }))
+            dispatch(login({ isLoggedIn: true, token: data.token }));
             localStorage.setItem('token', data.token);
-            showSuccessSnackbar("Logged in!")
-            // alert('Login successful!');
+            showSuccessSnackbar('Welcome back!');
         },
         onError: (error: any) => {
-            console.log(error)
             showWarningSnackbar(`Login failed: ${error.response?.data?.message || error.message}`);
-        }
+        },
     });
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!username.length) {
-            return showWarningSnackbar("Enter username !")
-        }
-        if (!password.length) {
-            return showWarningSnackbar("Enter password")
-        }
-        console.log('sdfsdf')
+        if (!username.length) return showWarningSnackbar('Enter your username');
+        if (!password.length) return showWarningSnackbar('Enter your password');
         mutation.mutate({ username, password });
     };
 
     return (
-        <Container component="main" maxWidth="xs">
-            <Paper elevation={3} sx={{ mt: 3, p: 3 }}>
-                <Typography variant="h4" gutterBottom>
-                    Login
+        <Stack component='form' onSubmit={handleSubmit} spacing={2}>
+            <Stack spacing={0.5}>
+                <Typography variant='h5' sx={{ fontWeight: 800 }}>
+                    Welcome back
                 </Typography>
-                <TextField
-                    size='small'
-                    label="Username"
-                    type="username"
-                    value={username}
-                    onChange={(e) => setusername(e.target.value)}
-                    required
-                    fullWidth
-                    sx={{
-                        '& .MuiFormLabel-asterisk': {
-                            color: 'red',
-                        },
-                    }}
-                />
-                <TextField
-                    size='small'
-                    label="Password"
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    fullWidth
-                    margin="normal"
-                    sx={{
-                        '& .MuiFormLabel-asterisk': {
-                            color: 'red',
-                        },
-                    }}
-                    InputProps={{ // <-- This is where the toggle button is added.
-                        endAdornment: (
-                            <InputAdornment sx={{cursor:"pointer"}} position="end">
-                                    {showPassword ? <Visibility
-                                        onMouseDown={() => {
-                                            setShowPassword(false)
-                                        }}
-                                        onClick={() => {
-                                            setShowPassword(!showPassword)
-                                        }} /> : <VisibilityOff
-                                        onMouseDown={() => {
-                                            setShowPassword(false)
-                                        }}
-                                        onClick={() => {
-                                            setShowPassword(!showPassword)
-                                        }} />}
-                            </InputAdornment>
-                        )
-                    }}
-                />
-                <Button onClick={handleSubmit} variant="contained" color="primary" fullWidth sx={{ mt: 2 }}>
-                    Login
-                </Button>
-            </Paper>
-        </Container>
+                <Typography variant='body2' color='text.secondary' sx={{ fontWeight: 600 }}>
+                    Sign in to access your dashboard
+                </Typography>
+            </Stack>
+
+            <TextField
+                label='Username'
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                fullWidth
+                required
+                autoComplete='username'
+                InputProps={{
+                    startAdornment: (
+                        <InputAdornment position='start'>
+                            <PersonRounded sx={{ fontSize: 18 }} />
+                        </InputAdornment>
+                    ),
+                }}
+            />
+            <TextField
+                label='Password'
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                fullWidth
+                required
+                autoComplete='current-password'
+                InputProps={{
+                    startAdornment: (
+                        <InputAdornment position='start'>
+                            <LockRounded sx={{ fontSize: 18 }} />
+                        </InputAdornment>
+                    ),
+                    endAdornment: (
+                        <InputAdornment position='end'>
+                            <IconButton
+                                onClick={() => setShowPassword((p) => !p)}
+                                edge='end'
+                                size='small'
+                                sx={{
+                                    border: 'none',
+                                    boxShadow: 'none',
+                                    bgcolor: 'transparent',
+                                    '&:hover': { boxShadow: 'none', transform: 'none', bgcolor: 'transparent' },
+                                }}
+                            >
+                                {showPassword ? (
+                                    <VisibilityOffRounded sx={{ fontSize: 18 }} />
+                                ) : (
+                                    <VisibilityRounded sx={{ fontSize: 18 }} />
+                                )}
+                            </IconButton>
+                        </InputAdornment>
+                    ),
+                }}
+            />
+
+            <Button
+                type='submit'
+                variant='contained'
+                color='primary'
+                fullWidth
+                size='large'
+                startIcon={<LoginRounded />}
+                disabled={mutation.status === 'pending'}
+                sx={{ mt: 1 }}
+            >
+                {mutation.status === 'pending' ? 'Signing in…' : 'Sign in'}
+            </Button>
+
+            {onSwitchToRegister && (
+                <Typography
+                    variant='body2'
+                    align='center'
+                    sx={{ fontWeight: 600, color: 'text.secondary', mt: 1 }}
+                >
+                    New here?{' '}
+                    <Typography
+                        component='span'
+                        onClick={onSwitchToRegister}
+                        sx={{
+                            fontWeight: 800,
+                            color: 'text.primary',
+                            cursor: 'pointer',
+                            textDecoration: 'underline',
+                            textUnderlineOffset: 3,
+                            '&:hover': { color: '#0a0a0a', backgroundColor: '#fcd34d', px: 0.5 },
+                        }}
+                    >
+                        Create an account
+                    </Typography>
+                </Typography>
+            )}
+        </Stack>
     );
 };
 

@@ -1,45 +1,105 @@
 import React, { useState } from 'react';
-import { Box, Button, Typography } from '@mui/material';
+import {
+    Box,
+    Card,
+    CssBaseline,
+    Stack,
+    Tab,
+    Tabs,
+    ThemeProvider,
+    Typography,
+} from '@mui/material';
+import { lightTheme } from '../_styles/CreateTheme';
 import Login from './login';
 import Register from './register';
-import { Container } from '@mui/system';
+
+type Mode = 'login' | 'register';
 
 const LoginSignUp: React.FC = () => {
-    const [isRightPanelActive, setIsRightPanelActive] = useState<boolean>(false);
-
-    const handleSignUpClick = () => {
-        setIsRightPanelActive(true);
-    };
-
-    const handleSignInClick = () => {
-        setIsRightPanelActive(false);
-    };
+    const [mode, setMode] = useState<Mode>('login');
 
     return (
-        <Box id="loginPage" className="LoginSign4334" sx={{ height: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <ThemeProvider theme={lightTheme}>
+            <CssBaseline />
             <Box
-                className={`container ${isRightPanelActive ? 'right-panel-active' : ''}`}
-                sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}
-                id="container"
+                sx={{
+                    minHeight: '100vh',
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    p: { xs: 2, sm: 3 },
+                }}
             >
-                <Login />
-                <Register />
-                <Box className="overlay-container">
-                    <Box className="overlay">
-                        <Box className="overlay-panel overlay-left">
-                            <Typography variant="h4" gutterBottom>Welcome Back!</Typography>
-                            <Typography variant="body1">To keep connected with us please login with your personal info</Typography>
-                            <Button variant="contained" className="ghost" id="signIn" onClick={handleSignInClick}>Sign In</Button>
+                <Box sx={{ width: '100%', maxWidth: 440 }}>
+                    {/* Branded header */}
+                    <Stack direction='row' alignItems='center' gap={1.5} sx={{ mb: 3, justifyContent: 'center' }}>
+                        <Box
+                            sx={{
+                                width: 48,
+                                height: 48,
+                                borderRadius: 1.5,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                backgroundColor: '#fcd34d',
+                                color: '#0a0a0a',
+                                fontWeight: 900,
+                                fontSize: 26,
+                                lineHeight: 1,
+                                letterSpacing: '-0.04em',
+                                border: '2px solid #0a0a0a',
+                                boxShadow: '3px 3px 0 0 #0a0a0a',
+                            }}
+                        >
+                            X
                         </Box>
-                        <Box className="overlay-panel overlay-right">
-                            <Typography variant="h4" gutterBottom>Hello, Friend!</Typography>
-                            <Typography variant="body1">Enter your personal details and start journey with us</Typography>
-                            <Button variant="contained" className="ghost" id="signUp" onClick={handleSignUpClick}>Sign Up</Button>
+                        <Typography variant='h5' sx={{ fontWeight: 800, letterSpacing: '-0.02em' }}>
+                            pense&nbsp;Master
+                        </Typography>
+                    </Stack>
+
+                    <Card sx={{ p: 0, overflow: 'hidden' }}>
+                        <Box
+                            sx={{
+                                p: 0.75,
+                                backgroundColor: '#fef6e4',
+                                borderBottom: '2px solid #0a0a0a',
+                            }}
+                        >
+                            <Tabs
+                                value={mode}
+                                onChange={(_, v) => setMode(v)}
+                                variant='fullWidth'
+                                sx={{
+                                    minHeight: 40,
+                                    '& .MuiTabs-flexContainer': { gap: 0.5 },
+                                    '& .MuiTab-root': { borderRadius: 1.5 },
+                                }}
+                            >
+                                <Tab value='login' label='Login' />
+                                <Tab value='register' label='Sign up' />
+                            </Tabs>
                         </Box>
-                    </Box>
+                        <Box sx={{ p: { xs: 2.5, sm: 3 } }}>
+                            {mode === 'login' ? (
+                                <Login onSwitchToRegister={() => setMode('register')} />
+                            ) : (
+                                <Register onSwitchToLogin={() => setMode('login')} />
+                            )}
+                        </Box>
+                    </Card>
+
+                    <Typography
+                        variant='caption'
+                        align='center'
+                        sx={{ display: 'block', mt: 2.5, fontWeight: 600, color: 'text.secondary' }}
+                    >
+                        Track expenses · Split with friends · Stay in control
+                    </Typography>
                 </Box>
             </Box>
-        </Box>
+        </ThemeProvider>
     );
 };
 
