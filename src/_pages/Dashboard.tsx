@@ -42,13 +42,15 @@ import {
 import HorizontalBarChart from '../_components/graphs/horizontalBar';
 import { Transaction } from './transactionGrid';
 import { loginv2 } from '../redux/authSlice';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
+import { RootState } from '../redux/store';
 import {
     buildTimeSeries,
     computeTotals,
     filterDashboardTransactions,
     formatInr,
 } from '../_utils/dashboardCharts';
+import { apiListRooms, apiListExpenses } from '../_utils/roomsAPI';
 
 Chart.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend);
 
@@ -206,6 +208,33 @@ const DashBoard: React.FC = () => {
         dispatch(loginv2({ username: user?.username ?? '' }));
     }, [user, dispatch]);
 
+    const username = useSelector((s: RootState) => s.auth.username);
+
+    const { data: roomExpenses = [] } = useQuery({
+        queryKey: ['room-expenses', username],
+        queryFn: async () => {
+            try {
+                const rooms = await apiListRooms();
+                const allExpenses = await Promise.all(
+                    rooms.map((r) => apiListExpenses(r.room_code)),
+                );
+                return allExpenses.flat();
+            } catch {
+                return [];
+            }
+        },
+        enabled: !!username,
+        staleTime: 30_000,
+    });
+
+    const userRoomExpense = useMemo(() => {
+        if (!username) return 0;
+        return roomExpenses.reduce((sum, e) => {
+            const myShare = e.shares.find((s) => s.username === username);
+            return sum + (myShare?.share_amount ?? 0);
+        }, 0);
+    }, [roomExpenses, username]);
+
     const [data, setData] = useState({ income: 0, expense: 0, balance: 0 });
 
     const incomeDataset = (data: number[]) => ({
@@ -258,7 +287,12 @@ const DashBoard: React.FC = () => {
 
     useEffect(() => {
         const totals = computeTotals(filteredTransactions);
-        setData(totals);
+        const totalExpense = totals.expense + userRoomExpense;
+        setData({
+            income: totals.income,
+            expense: totalExpense,
+            balance: totals.income - totalExpense,
+        });
 
         const series = buildTimeSeries(filteredTransactions, dateRange);
         setChartData({
@@ -268,7 +302,7 @@ const DashBoard: React.FC = () => {
                 expenseDataset(series.expense),
             ],
         });
-    }, [filteredTransactions, dateRange]);
+    }, [filteredTransactions, dateRange, userRoomExpense]);
 
     if (transactionsError || categoriesError) {
         return (
